@@ -1,0 +1,30 @@
+'use client';
+
+import { MegaFooter } from "@/components/MegaFooter";
+import AnimatedAuth from "@/components/AnimatedAuth";
+
+export default function LoginPage() {
+  return (
+    <div className="flex flex-col min-h-screen">
+        <main>
+      <AnimatedAuth 
+        themeColor="#3b82f6" // Changes the primary accent to blue
+        glowColor="rgba(59, 130, 246, 0.4)"
+        leftPanelTitle="STAY CONNECTED!"
+      />
+      </main>
+      <MegaFooter
+        brandName="Bits"
+        tagline="Designing delightful digital experiences."
+        socialLinks={[
+          { platform: "twitter", href: "https://twitter.com" },
+          { platform: "github", href: "https://github.com/Medhansh-741/ps-crm"},
+          { platform: "linkedin", href: "https://linkedin.com" },
+        ]}
+        showNewsletter={true}
+        newsletterTitle="Stay updated"
+        newsletterPlaceholder="Enter your email"
+      />
+    </div>
+  );
+}
