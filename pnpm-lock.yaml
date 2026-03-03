@@ -20,9 +20,6 @@ importers:
       lucide-react:
         specifier: ^0.576.0
         version: 0.576.0(react@19.2.3)
-      '@supabase/supabase-js':
-        specifier: ^2.98.0
-        version: 2.98.0
     devDependencies:
       '@types/node':
         specifier: ^25.3.3

@@ -1,0 +1,241 @@
+'use client';
+
+import React, { useState, useRef } from 'react';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
+import { User, Lock, Mail } from 'lucide-react';
+
+// Register the hook to ensure proper cleanup in React strict mode
+gsap.registerPlugin(useGSAP);
+
+interface AnimatedAuthProps {
+  themeColor?: string;
+  glowColor?: string;
+  leftPanelTitle?: string;
+  leftPanelSubtitle?: string;
+  rightPanelTitle?: string;
+  rightPanelSubtitle?: string;
+  loginTitle?: string;
+  signupTitle?: string;
+}
+
+export default function AnimatedAuth({
+  themeColor = '#8b5cf6', // Default purple (Tailwind violet-500)
+  glowColor = 'rgba(139, 92, 246, 0.5)',
+  leftPanelTitle = 'WELCOME BACK!',
+  leftPanelSubtitle = 'Lorem ipsum dolor sit amet consectetur adipisicing.',
+  rightPanelTitle = 'HELLO FRIEND!',
+  rightPanelSubtitle = 'Enter your personal details and start your journey with us.',
+  loginTitle = 'Login',
+  signupTitle = 'Sign Up',
+}: AnimatedAuthProps) {
+  const [isLogin, setIsLogin] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const overlayTintRef = useRef<HTMLDivElement>(null);
+  const overlayLeftTextRef = useRef<HTMLDivElement>(null);
+  const overlayRightTextRef = useRef<HTMLDivElement>(null);
+  const loginFormRef = useRef<HTMLDivElement>(null);
+  const signupFormRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(() => {
+    gsap.fromTo(
+      containerRef.current,
+      { autoAlpha: 0, y: 40, scale: 0.98 },
+      {
+        autoAlpha: 1,
+        y: 0,
+        scale: 1,
+        duration: 0.8,
+        ease: 'power3.out',
+      }
+    );
+  }, { scope: containerRef });
+
+  useGSAP(() => {
+    const tl = gsap.timeline({ defaults: { ease: 'power3.inOut', duration: 0.8 } });
+
+    if (isLogin) {
+      // Transition to Login State (Overlay moves right)
+      tl.to(overlayTintRef.current, { autoAlpha: 1, duration: 0.25, ease: 'power1.out' }, 0)
+      tl.to(overlayRef.current, {
+        left: '45%',
+        clipPath: 'polygon(20% 0%, 100% 0%, 100% 100%, 0% 100%)',
+      }, 0)
+      .to(overlayTintRef.current, { autoAlpha: 0, duration: 0.35, ease: 'power1.in' }, 0.55)
+      .to(overlayLeftTextRef.current, { autoAlpha: 0, x: -50 }, 0)
+      .to(overlayRightTextRef.current, { autoAlpha: 1, x: 0 }, 0.2)
+      .to(signupFormRef.current, { autoAlpha: 0, x: 50 }, 0)
+      .to(loginFormRef.current, { autoAlpha: 1, x: 0 }, 0.2);
+    } else {
+      // Transition to Sign Up State (Overlay moves left)
+      tl.to(overlayTintRef.current, { autoAlpha: 1, duration: 0.25, ease: 'power1.out' }, 0)
+      tl.to(overlayRef.current, {
+        left: '0%',
+        clipPath: 'polygon(0% 0%, 100% 0%, 80% 100%, 0% 100%)',
+      }, 0)
+      .to(overlayTintRef.current, { autoAlpha: 0, duration: 0.35, ease: 'power1.in' }, 0.55)
+      .to(overlayRightTextRef.current, { autoAlpha: 0, x: 50 }, 0)
+      .to(overlayLeftTextRef.current, { autoAlpha: 1, x: 0 }, 0.2)
+      .to(loginFormRef.current, { autoAlpha: 0, x: -50 }, 0)
+      .to(signupFormRef.current, { autoAlpha: 1, x: 0 }, 0.2);
+    }
+  }, { dependencies: [isLogin], scope: containerRef });
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-black p-4">
+      {/* Main Container */}
+      <div
+        ref={containerRef}
+        className="relative w-full max-w-4xl h-[500px] bg-[#0a0a0a] rounded-xl overflow-hidden flex"
+        style={{
+          boxShadow: `0 0 20px ${glowColor}, inset 0 0 0 1px ${themeColor}40`,
+        }}
+      >
+        
+        {/* === LOGIN FORM (Left Side) === */}
+        <div 
+          ref={loginFormRef}
+          className="absolute left-0 top-0 w-1/2 h-full flex flex-col justify-center px-12 opacity-0 -translate-x-12 pointer-events-auto z-10"
+        >
+          <h2 className="text-3xl font-bold text-white mb-8">{loginTitle}</h2>
+          <div className="space-y-4">
+            <div className="relative border-b border-gray-600 pb-2">
+              <input 
+                type="text" 
+                placeholder="Username" 
+                className="w-full bg-transparent outline-none text-white text-sm placeholder-gray-400"
+              />
+              <span className="absolute right-0 text-gray-400">
+                <User size={16} />
+              </span>
+            </div>
+            <div className="relative border-b border-gray-600 pb-2">
+              <input 
+                type="password" 
+                placeholder="Password" 
+                className="w-full bg-transparent outline-none text-white text-sm placeholder-gray-400"
+              />
+              <span className="absolute right-0 text-gray-400">
+                <Lock size={16} />
+              </span>
+            </div>
+          </div>
+          <button 
+            className="w-full mt-8 py-3 rounded-full text-white font-semibold transition-transform hover:scale-105"
+            style={{ backgroundColor: themeColor }}
+          >
+            {loginTitle}
+          </button>
+          <p className="text-xs text-gray-400 mt-6 text-center">
+            Don't have an account?{' '}
+            <button onClick={() => setIsLogin(false)} style={{ color: themeColor }} className="hover:underline">
+              Sign Up
+            </button>
+          </p>
+        </div>
+
+        {/* === SIGN UP FORM (Right Side) === */}
+        <div 
+          ref={signupFormRef}
+          className="absolute right-0 top-0 w-1/2 h-full flex flex-col justify-center px-12 pointer-events-auto z-10"
+        >
+          <h2 className="text-3xl font-bold text-white mb-8">{signupTitle}</h2>
+          <div className="space-y-4">
+            <div className="relative border-b border-gray-600 pb-2">
+              <input 
+                type="text" 
+                placeholder="Username" 
+                className="w-full bg-transparent outline-none text-white text-sm placeholder-gray-400"
+              />
+              <span className="absolute right-0 text-gray-400">
+                <User size={16} />
+              </span>
+            </div>
+            <div className="relative border-b border-gray-600 pb-2">
+              <input 
+                type="email" 
+                placeholder="Email" 
+                className="w-full bg-transparent outline-none text-white text-sm placeholder-gray-400"
+              />
+              <span className="absolute right-0 text-gray-400">
+                <Mail size={16} />
+              </span>
+            </div>
+            <div className="relative border-b border-gray-600 pb-2">
+              <input 
+                type="password" 
+                placeholder="Password" 
+                className="w-full bg-transparent outline-none text-white text-sm placeholder-gray-400"
+              />
+              <span className="absolute right-0 text-gray-400">
+                <Lock size={16} />
+              </span>
+            </div>
+          </div>
+          <button 
+            className="w-full mt-8 py-3 rounded-full text-white font-semibold transition-transform hover:scale-105"
+            style={{ backgroundColor: themeColor }}
+          >
+            {signupTitle}
+          </button>
+          <p className="text-xs text-gray-400 mt-6 text-center">
+            Already have an account?{' '}
+            <button onClick={() => setIsLogin(true)} style={{ color: themeColor }} className="hover:underline">
+              Login
+            </button>
+          </p>
+        </div>
+
+        {/* === ANIMATED OVERLAY === */}
+        <div
+          ref={overlayRef}
+          className="absolute top-0 h-full w-[55%] z-20 flex overflow-hidden shadow-2xl"
+          style={{
+            backgroundImage: "url('/Authsideimage.jpeg')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            // Initial state: Covering left side (Sign Up mode)
+            left: '0%',
+            clipPath: 'polygon(0% 0%, 100% 0%, 80% 100%, 0% 100%)',
+          }}
+        >
+          <div
+            ref={overlayTintRef}
+            className="absolute inset-0 bg-[#d2b48c] opacity-0"
+          />
+
+          {/* Overlay Content Left (Visible when overlay is on the left) */}
+          <div 
+            ref={overlayLeftTextRef}
+            className="absolute inset-0 z-10 flex flex-col justify-center items-start px-12 w-[calc(100%/0.55*0.5)]"
+          >
+            <h1 className="text-4xl font-bold text-white mb-4 leading-tight">
+              {leftPanelTitle.split(' ').map((word, i) => (
+                <React.Fragment key={i}>{word}<br/></React.Fragment>
+              ))}
+            </h1>
+            <p className="text-sm text-gray-300 max-w-[200px] leading-relaxed">
+              {leftPanelSubtitle}
+            </p>
+          </div>
+
+          {/* Overlay Content Right (Visible when overlay is on the right) */}
+          <div 
+            ref={overlayRightTextRef}
+            className="absolute right-0 inset-y-0 z-10 flex flex-col justify-center items-end px-12 w-[calc(100%/0.55*0.5)] text-right opacity-0"
+          >
+            <h1 className="text-4xl font-bold text-white mb-4 leading-tight">
+              {rightPanelTitle.split(' ').map((word, i) => (
+                <React.Fragment key={i}>{word}<br/></React.Fragment>
+              ))}
+            </h1>
+            <p className="text-sm text-gray-300 max-w-[200px] leading-relaxed">
+              {rightPanelSubtitle}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
