@@ -72,8 +72,10 @@ export type Database = {
           address_text: string | null
           assigned_department: string | null
           assigned_officer_id: string | null
+          assigned_worker_id: string | null
           category_id: number
           citizen_id: string
+          city: string
           created_at: string
           description: string
           digipin: string | null
@@ -85,6 +87,9 @@ export type Database = {
           photo_count: number | null
           photo_urls: string[] | null
           pincode: string | null
+          possible_duplicate: boolean
+          reopen_count: number
+          reopen_deadline: string | null
           resolution_note: string | null
           resolved_at: string | null
           severity: string
@@ -102,8 +107,10 @@ export type Database = {
           address_text?: string | null
           assigned_department?: string | null
           assigned_officer_id?: string | null
+          assigned_worker_id?: string | null
           category_id: number
           citizen_id: string
+          city?: string
           created_at?: string
           description: string
           digipin?: string | null
@@ -115,6 +122,9 @@ export type Database = {
           photo_count?: number | null
           photo_urls?: string[] | null
           pincode?: string | null
+          possible_duplicate?: boolean
+          reopen_count?: number
+          reopen_deadline?: string | null
           resolution_note?: string | null
           resolved_at?: string | null
           severity?: string
@@ -132,8 +142,10 @@ export type Database = {
           address_text?: string | null
           assigned_department?: string | null
           assigned_officer_id?: string | null
+          assigned_worker_id?: string | null
           category_id?: number
           citizen_id?: string
+          city?: string
           created_at?: string
           description?: string
           digipin?: string | null
@@ -145,6 +157,9 @@ export type Database = {
           photo_count?: number | null
           photo_urls?: string[] | null
           pincode?: string | null
+          possible_duplicate?: boolean
+          reopen_count?: number
+          reopen_deadline?: string | null
           resolution_note?: string | null
           resolved_at?: string | null
           severity?: string
@@ -162,6 +177,13 @@ export type Database = {
           {
             foreignKeyName: "complaints_assigned_officer_id_fkey"
             columns: ["assigned_officer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "complaints_assigned_worker_id_fkey"
+            columns: ["assigned_worker_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -186,6 +208,7 @@ export type Database = {
         Row: {
           aadhar_hash: string | null
           avatar_url: string | null
+          city: string | null
           created_at: string
           department: string | null
           email: string
@@ -201,6 +224,7 @@ export type Database = {
         Insert: {
           aadhar_hash?: string | null
           avatar_url?: string | null
+          city?: string | null
           created_at?: string
           department?: string | null
           email: string
@@ -216,6 +240,7 @@ export type Database = {
         Update: {
           aadhar_hash?: string | null
           avatar_url?: string | null
+          city?: string | null
           created_at?: string
           department?: string | null
           email?: string
@@ -394,11 +419,64 @@ export type Database = {
           },
         ]
       }
+      worker_profiles: {
+        Row: {
+          availability: string
+          city: string
+          current_complaint_id: string | null
+          department: string
+          joined_at: string
+          total_resolved: number
+          worker_id: string
+        }
+        Insert: {
+          availability?: string
+          city?: string
+          current_complaint_id?: string | null
+          department: string
+          joined_at?: string
+          total_resolved?: number
+          worker_id: string
+        }
+        Update: {
+          availability?: string
+          city?: string
+          current_complaint_id?: string | null
+          department?: string
+          joined_at?: string
+          total_resolved?: number
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worker_profiles_current_complaint_id_fkey"
+            columns: ["current_complaint_id"]
+            isOneToOne: false
+            referencedRelation: "complaints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worker_profiles_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      assign_worker_to_complaint: {
+        Args: {
+          p_admin_id: string
+          p_complaint_id: string
+          p_worker_id: string
+        }
+        Returns: Json
+      }
       check_for_duplicate_report: {
         Args: { p_category_id: number; p_lat: number; p_lng: number }
         Returns: {
@@ -410,6 +488,7 @@ export type Database = {
           upvote_count: number
         }[]
       }
+      check_sla_breaches: { Args: never; Returns: number }
       get_category_breakdown: {
         Args: never
         Returns: {
