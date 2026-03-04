@@ -56,11 +56,11 @@ export default function LandNavbar() {
               {isDark ? <><SunIcon /><span>Light</span></> : <><MoonIcon /><span>Dark</span></>}
             </button>
 
-            <a href="#"
+            <a href="/login"
               className="rounded-full bg-emerald-500 px-4 py-1.5 text-sm font-semibold text-white hover:bg-emerald-400 transition-colors">
               Sign in
             </a>
-            <a href="#" className={`text-sm font-semibold transition-colors ${sub}`}>
+            <a href="/login" className={`text-sm font-semibold transition-colors ${sub}`}>
               Log in →
             </a>
           </div>
@@ -109,11 +109,11 @@ export default function LandNavbar() {
             {/* Auth & theme */}
             <nav className={`flex-1 overflow-y-auto px-4 py-4`}>
               <div className="space-y-2">
-                <a href="#"
+                <a href="/login"
                   className="block rounded-lg bg-emerald-500 px-3 py-2.5 text-center text-sm font-semibold text-white hover:bg-emerald-400 transition-colors">
                   Sign in
                 </a>
-                <a href="#"
+                <a href="/login"
                   className={`block rounded-lg px-3 py-2.5 text-sm font-semibold text-center transition-colors ${text} ${hoverRow}`}>
                   Log in
                 </a>

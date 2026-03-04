@@ -68,7 +68,7 @@ export default function Home() {
         {/* CTA buttons */}
         <div className="mt-10 sm:mt-12 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 w-full max-w-sm sm:max-w-none">
           <a
-            href="#"
+            href="/login"
             className="w-full sm:w-auto rounded-full bg-emerald-500 hover:bg-emerald-400 text-white px-8 py-3 text-sm font-semibold shadow-lg shadow-emerald-500/30 transition-all duration-300 hover:shadow-emerald-400/40 hover:-translate-y-0.5"
           >
             Get Started
