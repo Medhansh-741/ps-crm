@@ -4,6 +4,8 @@ import React, { useState, useRef } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { User, Lock, Mail } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/src/lib/supabase';
 
 // Register the hook to ensure proper cleanup in React strict mode
 gsap.registerPlugin(useGSAP);
@@ -19,6 +21,9 @@ interface AnimatedAuthProps {
   signupTitle?: string;
 }
 
+const roles = ['admin', 'authority', 'citizen', 'worker'] as const;
+type Role = (typeof roles)[number];
+
 export default function AnimatedAuth({
   themeColor = '#8b5cf6', // Default purple (Tailwind violet-500)
   glowColor = 'rgba(139, 92, 246, 0.5)',
@@ -30,6 +35,21 @@ export default function AnimatedAuth({
   signupTitle = 'Sign Up',
 }: AnimatedAuthProps) {
   const [isLogin, setIsLogin] = useState(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [signupName, setSignupName] = useState('');
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [signupPhone, setSignupPhone] = useState('');
+  const [signupCity, setSignupCity] = useState('');
+  const [signupDepartment, setSignupDepartment] = useState('');
+  const [signupRole, setSignupRole] = useState<Role>('citizen');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const overlayTintRef = useRef<HTMLDivElement>(null);
@@ -82,6 +102,76 @@ export default function AnimatedAuth({
     }
   }, { dependencies: [isLogin], scope: containerRef });
 
+  const handleLogin = async () => {
+    setError('');
+    setMessage('');
+    setLoading(true);
+
+    const { error: loginError } = await supabase.auth.signInWithPassword({
+      email: loginEmail.trim(),
+      password: loginPassword,
+    });
+
+    if (loginError) {
+      setError(loginError.message);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(false);
+    router.push('/map');
+  };
+
+  const handleSignup = async () => {
+    if (!signupEmail || !signupPassword || !signupCity) {
+      setError('Email, password and city are required.');
+      return;
+    }
+
+    setError('');
+    setMessage('');
+    setLoading(true);
+
+    const { data, error: signupError } = await supabase.auth.signUp({
+      email: signupEmail.trim(),
+      password: signupPassword,
+    });
+
+    if (signupError) {
+      setError(signupError.message);
+      setLoading(false);
+      return;
+    }
+
+    const userId = data.user?.id;
+    const userEmail = data.user?.email;
+
+    if (userId && userEmail) {
+      const { error: profileError } = await supabase.from('profiles').upsert(
+        {
+          id: userId,
+          email: userEmail,
+          full_name: signupName || null,
+          phone: signupPhone || null,
+          department: signupDepartment || null,
+          role: signupRole,
+          city: signupCity,
+        },
+        { onConflict: 'id' }
+      );
+
+      if (profileError) {
+        setError(profileError.message);
+        setLoading(false);
+        return;
+      }
+    }
+
+    setLoading(false);
+    setMessage('Account created. Please login.');
+    setIsLogin(true);
+  };
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-black p-4">
       {/* Main Container */}
@@ -92,6 +182,11 @@ export default function AnimatedAuth({
           boxShadow: `0 0 20px ${glowColor}, inset 0 0 0 1px ${themeColor}40`,
         }}
       >
+        {(error || message) && (
+          <div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 px-4 py-2 text-sm rounded-lg border border-white/20 bg-black/70 text-white">
+            {error || message}
+          </div>
+        )}
         
         {/* === LOGIN FORM (Left Side) === */}
         <div 
@@ -102,30 +197,40 @@ export default function AnimatedAuth({
           <div className="space-y-4">
             <div className="relative border-b border-gray-600 pb-2">
               <input 
-                type="text" 
-                placeholder="Username" 
+                type="email" 
+                placeholder="Email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
                 className="w-full bg-transparent outline-none text-white text-sm placeholder-gray-400"
               />
               <span className="absolute right-0 text-gray-400">
-                <User size={16} />
+                <Mail size={16} />
               </span>
             </div>
             <div className="relative border-b border-gray-600 pb-2">
               <input 
-                type="password" 
+                type={showLoginPassword ? 'text' : 'password'}
                 placeholder="Password" 
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
                 className="w-full bg-transparent outline-none text-white text-sm placeholder-gray-400"
               />
-              <span className="absolute right-0 text-gray-400">
-                <Lock size={16} />
-              </span>
+              <button
+                type="button"
+                onClick={() => setShowLoginPassword((prev) => !prev)}
+                className="absolute right-0 text-xs text-gray-300 hover:text-white"
+              >
+                {showLoginPassword ? 'Hide' : 'Show'}
+              </button>
             </div>
           </div>
           <button 
+            onClick={handleLogin}
+            disabled={loading}
             className="w-full mt-8 py-3 rounded-full text-white font-semibold transition-transform hover:scale-105"
             style={{ backgroundColor: themeColor }}
           >
-            {loginTitle}
+            {loading ? 'Please wait...' : loginTitle}
           </button>
           <p className="text-xs text-gray-400 mt-6 text-center">
             Don't have an account?{' '}
@@ -138,15 +243,17 @@ export default function AnimatedAuth({
         {/* === SIGN UP FORM (Right Side) === */}
         <div 
           ref={signupFormRef}
-          className="absolute right-0 top-0 w-1/2 h-full flex flex-col justify-center px-12 pointer-events-auto z-10"
+          className="absolute right-0 top-0 w-1/2 h-full flex flex-col justify-start px-12 pointer-events-auto z-10 overflow-hidden pt-6"
         >
-          <h2 className="text-3xl font-bold text-white mb-8">{signupTitle}</h2>
-          <div className="space-y-4">
+          <h2 className="text-2xl font-bold text-white mb-4">{signupTitle}</h2>
+          <div className="space-y-2.5">
             <div className="relative border-b border-gray-600 pb-2">
               <input 
                 type="text" 
-                placeholder="Username" 
-                className="w-full bg-transparent outline-none text-white text-sm placeholder-gray-400"
+                placeholder="Full name"
+                value={signupName}
+                onChange={(e) => setSignupName(e.target.value)}
+                className="w-full bg-transparent outline-none text-white text-xs placeholder-gray-400"
               />
               <span className="absolute right-0 text-gray-400">
                 <User size={16} />
@@ -156,7 +263,9 @@ export default function AnimatedAuth({
               <input 
                 type="email" 
                 placeholder="Email" 
-                className="w-full bg-transparent outline-none text-white text-sm placeholder-gray-400"
+                value={signupEmail}
+                onChange={(e) => setSignupEmail(e.target.value)}
+                className="w-full bg-transparent outline-none text-white text-xs placeholder-gray-400"
               />
               <span className="absolute right-0 text-gray-400">
                 <Mail size={16} />
@@ -164,22 +273,83 @@ export default function AnimatedAuth({
             </div>
             <div className="relative border-b border-gray-600 pb-2">
               <input 
-                type="password" 
-                placeholder="Password" 
-                className="w-full bg-transparent outline-none text-white text-sm placeholder-gray-400"
+                type="text" 
+                placeholder="Phone"
+                value={signupPhone}
+                onChange={(e) => setSignupPhone(e.target.value)}
+                className="w-full bg-transparent outline-none text-white text-xs placeholder-gray-400"
               />
               <span className="absolute right-0 text-gray-400">
-                <Lock size={16} />
+                <User size={16} />
               </span>
+            </div>
+            <div className="relative border-b border-gray-600 pb-2">
+              <input 
+                type="text" 
+                placeholder="City (required)"
+                value={signupCity}
+                onChange={(e) => setSignupCity(e.target.value)}
+                className="w-full bg-transparent outline-none text-white text-xs placeholder-gray-400"
+              />
+              <span className="absolute right-0 text-gray-400">
+                <User size={16} />
+              </span>
+            </div>
+            <div className="relative border-b border-gray-600 pb-2">
+              <input 
+                type="text" 
+                placeholder="Department"
+                value={signupDepartment}
+                onChange={(e) => setSignupDepartment(e.target.value)}
+                className="w-full bg-transparent outline-none text-white text-xs placeholder-gray-400"
+              />
+              <span className="absolute right-0 text-gray-400">
+                <User size={16} />
+              </span>
+            </div>
+            <div className="relative border-b border-gray-600 pb-2">
+              <input 
+                type={showSignupPassword ? 'text' : 'password'}
+                placeholder="Password" 
+                value={signupPassword}
+                onChange={(e) => setSignupPassword(e.target.value)}
+                className="w-full bg-transparent outline-none text-white text-xs placeholder-gray-400"
+              />
+              <button
+                type="button"
+                onClick={() => setShowSignupPassword((prev) => !prev)}
+                className="absolute right-0 text-xs text-gray-300 hover:text-white"
+              >
+                {showSignupPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            <div>
+              <p className="text-[11px] text-gray-400 mb-1.5">Role</p>
+              <div className="flex flex-wrap gap-3">
+                {roles.map((role) => (
+                  <label key={role} className="text-[11px] text-gray-200 capitalize flex items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name="signup-role"
+                      value={role}
+                      checked={signupRole === role}
+                      onChange={() => setSignupRole(role)}
+                    />
+                    {role}
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
           <button 
-            className="w-full mt-8 py-3 rounded-full text-white font-semibold transition-transform hover:scale-105"
+            onClick={handleSignup}
+            disabled={loading}
+            className="w-full mt-4 py-2.5 rounded-full text-white text-sm font-semibold transition-transform hover:scale-105"
             style={{ backgroundColor: themeColor }}
           >
-            {signupTitle}
+            {loading ? 'Please wait...' : signupTitle}
           </button>
-          <p className="text-xs text-gray-400 mt-6 text-center">
+          <p className="text-[11px] text-gray-400 mt-3 text-center">
             Already have an account?{' '}
             <button onClick={() => setIsLogin(true)} style={{ color: themeColor }} className="hover:underline">
               Login

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useTheme } from './ThemeProvider';
+import Link from 'next/link';
 
 
 function SunIcon() {
@@ -56,13 +57,13 @@ export default function LandNavbar() {
               {isDark ? <><SunIcon /><span>Light</span></> : <><MoonIcon /><span>Dark</span></>}
             </button>
 
-            <a href="#"
+            <Link href="/login"
               className="rounded-full bg-emerald-500 px-4 py-1.5 text-sm font-semibold text-white hover:bg-emerald-400 transition-colors">
               Sign in
-            </a>
-            <a href="#" className={`text-sm font-semibold transition-colors ${sub}`}>
+            </Link>
+            <Link href="/map" className={`text-sm font-semibold transition-colors ${sub}`}>
               Log in →
-            </a>
+            </Link>
           </div>
 
           {/* Mobile right — theme icon + hamburger */}
@@ -109,14 +110,14 @@ export default function LandNavbar() {
             {/* Auth & theme */}
             <nav className={`flex-1 overflow-y-auto px-4 py-4`}>
               <div className="space-y-2">
-                <a href="#"
+                <Link href="/login"
                   className="block rounded-lg bg-emerald-500 px-3 py-2.5 text-center text-sm font-semibold text-white hover:bg-emerald-400 transition-colors">
                   Sign in
-                </a>
-                <a href="#"
+                </Link>
+                <Link href="/map"
                   className={`block rounded-lg px-3 py-2.5 text-sm font-semibold text-center transition-colors ${text} ${hoverRow}`}>
                   Log in
-                </a>
+                </Link>
                 <button onClick={toggleTheme}
                   className={`w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium border transition-colors ${isDark
                     ? 'border-white/20 text-yellow-300 bg-white/5 hover:bg-white/10'
