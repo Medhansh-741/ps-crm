@@ -153,7 +153,7 @@ const Sidebar: React.FC<SidebarConfig> = ({
           y: 0,
           autoAlpha: 1,
           duration: 0.3,
-          stagger: 0.04, // Faster stagger for a snappier feel
+          stagger: 0.05, // Faster stagger for a snappier feel
           ease: "power2.out",
           clearProps: "opacity,visibility,transform",
         }
