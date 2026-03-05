@@ -34,6 +34,22 @@ export interface SidebarThemeColors {
   toggleButtonBg: string;
 }
 
+export interface SidebarNavigationItem {
+  id: string;
+  name: string;
+  icon: React.ReactNode;
+  href: string;
+  isActive?: boolean;
+  badge?: number;
+}
+
+export interface SidebarBottomNavigationItem {
+  id: string;
+  name: string;
+  icon: React.ReactNode;
+  href: string;
+}
+
 export const SIDEBAR_LIGHT_COLORS: SidebarThemeColors = {
   background: "bg-[#4f392e]",
   border: "border-gray-100",
@@ -71,20 +87,8 @@ export interface SidebarConfig {
     icon: React.ReactNode;
   };
   colors: SidebarThemeColors;
-  navigation: Array<{
-    id: string;
-    name: string;
-    icon: React.ReactNode;
-    href: string;
-    isActive?: boolean;
-    badge?: number;
-  }>;
-  bottomNavigation: Array<{
-    id: string;
-    name: string;
-    icon: React.ReactNode;
-    href: string;
-  }>;
+  navigation: SidebarNavigationItem[];
+  bottomNavigation: SidebarBottomNavigationItem[];
   // Mobile drawer controls
   isOpen: boolean;
   onClose: () => void;
@@ -229,15 +233,16 @@ const Sidebar: React.FC<SidebarConfig> = ({
                       {item.name}
                     </span>
                   </div>
-                  {item.badge && (
-                    <>
-                      <span className={`ml-auto text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full ${colors.badgeBg} ${colors.badgeText} transition-all duration-300 ${isCollapsed ? "w-0 opacity-0 overflow-hidden scale-0" : "w-5 opacity-100 scale-100"}`}>
-                        {item.badge}
-                      </span>
-                      <div className={`absolute top-2 right-2 w-2 h-2 rounded-full ${colors.badgeBg} transition-all duration-300 ${isCollapsed ? "opacity-100 scale-100" : "opacity-0 scale-0"}`} />
-                    </>
+                  {item.badge && !isCollapsed && (
+                    <span className={`ml-auto text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full ${colors.badgeBg} ${colors.badgeText} transition-all duration-300`}>
+                      {item.badge}
+                    </span>
                   )}
                 </a>
+
+                {item.badge && isCollapsed && (
+                  <div className={`pointer-events-none absolute top-2 right-2 w-2 h-2 rounded-full ${colors.badgeBg} transition-all duration-300 opacity-100 scale-100`} />
+                )}
               </div>
             ))}
           </nav>

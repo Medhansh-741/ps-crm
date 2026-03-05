@@ -1,18 +1,27 @@
 'use client';
 
 import { useState } from "react";
-import { Menu } from "lucide-react";
-import Sidebar, { defaultSidebarConfig } from "@/components/Sidebar";
+import { Flame, LayoutGrid, MapPin, Menu, Ticket } from "lucide-react";
+import Sidebar, { defaultSidebarConfig, SidebarNavigationItem } from "@/components/Sidebar";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const citizenNavigation: SidebarNavigationItem[] = [
+    { id: "dashboard", name: "Dashboard", icon: <LayoutGrid size={20} strokeWidth={2.5} />, href: "#", isActive: true },
+    { id: "track", name: "Your Tickets", icon: <Ticket size={20} strokeWidth={2} />, href: "#" },
+    { id: "projects", name: "Heatmap", icon: <Flame size={20} strokeWidth={2} />, href: "#", },
+    { id: "reports", name: "Nearby Tickets", icon: <MapPin size={20} strokeWidth={2} />, href: "#" },
+  ];
+
   const sidebarConfig = {
     ...defaultSidebarConfig,
     branding: {
       ...defaultSidebarConfig.branding,
       title: "Citizen",
     },
+    navigation: citizenNavigation,
   };
 
   return (
