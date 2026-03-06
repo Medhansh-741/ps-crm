@@ -106,7 +106,7 @@ export default function Header({
         gsap.to(headerRef.current, {
           backgroundColor: currentTheme.bgScrolled,
           color: currentTheme.textScrolled,
-          duration: 0.4,
+          duration: 0.2,
           ease: "power2.out",
         });
       },
@@ -114,7 +114,7 @@ export default function Header({
         gsap.to(headerRef.current, {
           backgroundColor: currentTheme.bgInitial,
           color: currentTheme.textInitial,
-          duration: 0.4,
+          duration: 0.2,
           ease: "power2.out",
         });
       },
