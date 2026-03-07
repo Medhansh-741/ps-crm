@@ -1,11 +1,21 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { MessageCircle, X, Send, Loader2, Plus, Camera } from "lucide-react";
+import { MessageCircle, X, Send, Loader2, Plus } from "lucide-react";
 import gsap from "gsap";
 import { sendToGemini } from "@/lib/gemini";
 import type { ChatMessage, ExtractedComplaint, GeminiResponse } from "@/lib/gemini";
 import { supabase } from "@/src/lib/supabase";
+import dynamic from "next/dynamic";
+
+const LocationPinPicker = dynamic(() => import("@/components/LocationPinPicker"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-40 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-xs text-gray-400">
+      Loading map…
+    </div>
+  ),
+});
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -23,6 +33,18 @@ interface DisplayMessage {
   extracted?: ExtractedComplaint | null;
   /** Image-based ticket preview from FastAPI /analyze */
   imagePreview?: ImageTicketPreview | null;
+  /** Reverse-geocoded details for text-based complaints */
+  geoDetails?: GeoDetails | null;
+}
+
+interface GeoDetails {
+  pincode: string;
+  locality: string;
+  city: string;
+  district: string;
+  state: string;
+  formatted_address: string;
+  digipin: string;
 }
 
 /** Shape of the /analyze response from FastAPI */
@@ -38,10 +60,67 @@ interface ImageTicketPreview {
   status: string;
   ward_name: string;
   pincode: string;
+  digipin: string;
+  locality: string;
+  city: string;
+  district: string;
+  state: string;
+  formatted_address: string;
   latitude: number;
   longitude: number;
+  accuracy: number;
+  timestamp: string;
+  confidence: number;
   user_text: string;
   confirm_prompt: string;
+}
+
+interface DuplicateMatch {
+  id: string;
+  ticket_id: string;
+  title: string;
+  status: string;
+  created_at: string;
+  distance_m: number;
+}
+
+interface DuplicateContext {
+  mode: "image" | "text";
+  duplicate: DuplicateMatch;
+}
+
+interface DeviceLocation {
+  lat: number;
+  lng: number;
+  accuracy: number;
+  timestamp: string;
+}
+
+const ISSUE_TYPE_CATEGORY_MAP: Array<{ keywords: string[]; categoryId: number }> = [
+  { keywords: ["metro", "station", "escalator", "lift"], categoryId: 1 },
+  { keywords: ["highway", "expressway", "toll", "bridge", "road", "pothole", "flyover"], categoryId: 11 },
+  { keywords: ["garbage", "waste", "trash", "sweeping", "toilet"], categoryId: 16 },
+  { keywords: ["drain", "sewage", "sewer", "water", "leak", "pipeline"], categoryId: 27 },
+  { keywords: ["street light", "light", "electricity", "power", "wire", "transformer"], categoryId: 25 },
+  { keywords: ["traffic", "signal", "parking", "accident"], categoryId: 36 },
+  { keywords: ["crime", "safety", "theft", "harassment"], categoryId: 35 },
+  { keywords: ["air", "noise", "pollution", "burning"], categoryId: 40 },
+];
+
+function categoryFromIssueType(issueType: string): number {
+  const normalized = issueType.toLowerCase();
+  const match = ISSUE_TYPE_CATEGORY_MAP.find(({ keywords }) =>
+    keywords.some((keyword) => normalized.includes(keyword)),
+  );
+  return match?.categoryId ?? 15;
+}
+
+function severityToLevel(severity: string): "L1" | "L2" | "L3" | "L4" {
+  const normalized = severity.trim().toLowerCase();
+  if (normalized === "critical" || normalized === "l4") return "L4";
+  if (normalized === "high" || normalized === "l3") return "L3";
+  if (normalized === "medium" || normalized === "l2") return "L2";
+  return "L1";
 }
 
 /* ------------------------------------------------------------------ */
@@ -57,6 +136,10 @@ export default function ChatWidget() {
   const [pendingComplaint, setPendingComplaint] = useState<ExtractedComplaint | null>(null);
   const [pendingImagePreview, setPendingImagePreview] = useState<ImageTicketPreview | null>(null);
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [pendingImageDataUrl, setPendingImageDataUrl] = useState<string | null>(null);
+  const [pendingLocation, setPendingLocation] = useState<DeviceLocation | null>(null);
+  const [duplicateContext, setDuplicateContext] = useState<DuplicateContext | null>(null);
+  const [locationConfirmed, setLocationConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -79,33 +162,47 @@ export default function ChatWidget() {
     });
   }, []);
 
-  /** Get browser geolocation (returns Delhi fallback on failure) */
-  const getLocation = (): Promise<{ lat: number; lng: number }> =>
+  /** Get browser geolocation and keep strict location metadata with fallback. */
+  const getLocation = (): Promise<DeviceLocation> =>
     new Promise((resolve) => {
+      const now = new Date().toISOString();
       if (!navigator.geolocation) {
-        resolve({ lat: 28.6139, lng: 77.209 });
+        resolve({ lat: 28.6139, lng: 77.209, accuracy: 10000, timestamp: now });
         return;
       }
       navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => resolve({ lat: 28.6139, lng: 77.209 }),
+        (pos) =>
+          resolve({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : 9999,
+            timestamp: new Date(pos.timestamp).toISOString(),
+          }),
+        () => resolve({ lat: 28.6139, lng: 77.209, accuracy: 10000, timestamp: now }),
         { timeout: 8000 },
       );
     });
 
-  /** Get Supabase auth token */
+  /** Get Supabase auth token — works for both email/password and Google OAuth */
   const getAuthToken = async (): Promise<string | null> => {
-    // First check if user is actually authenticated
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-    
-    // Then get the session for the access token
+    // Try getSession first (works immediately for email/password)
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.access_token) return session.access_token;
-    
-    // Fallback: try refreshing the session
+
+    // Force a session refresh — required for Google OAuth PKCE flow
+    // where the session may not be hydrated yet after redirect
     const { data: refreshData } = await supabase.auth.refreshSession();
-    return refreshData.session?.access_token ?? null;
+    if (refreshData.session?.access_token) return refreshData.session.access_token;
+
+    // Confirm user actually exists before giving up
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    // Session exists but is still hydrating (common after Google OAuth redirect)
+    // Wait briefly and retry once
+    await new Promise((res) => setTimeout(res, 500));
+    const { data: { session: retrySession } } = await supabase.auth.getSession();
+    return retrySession?.access_token ?? null;
   };
 
   /* ----- open / close with GSAP ----- */
@@ -148,10 +245,10 @@ export default function ChatWidget() {
 
   /* ----- message helpers ----- */
   const addBotMessage = useCallback(
-    (text: string, extra?: { extracted?: ExtractedComplaint | null; imagePreview?: ImageTicketPreview | null }) => {
+    (text: string, extra?: { extracted?: ExtractedComplaint | null; imagePreview?: ImageTicketPreview | null; geoDetails?: GeoDetails | null }) => {
       setMessages((prev) => [
         ...prev,
-        { id: uid(), role: "bot", text, extracted: extra?.extracted, imagePreview: extra?.imagePreview },
+        { id: uid(), role: "bot", text, extracted: extra?.extracted, imagePreview: extra?.imagePreview, geoDetails: extra?.geoDetails },
       ]);
       setTimeout(scrollToBottom, 80);
     },
@@ -170,6 +267,7 @@ export default function ChatWidget() {
       const reader = new FileReader();
       reader.onload = async () => {
         const dataUrl = reader.result as string;
+        setPendingImageDataUrl(dataUrl);
 
         // Show user message with image thumbnail
         setMessages((prev) => [
@@ -187,7 +285,7 @@ export default function ChatWidget() {
             return;
           }
 
-          const { lat, lng } = await getLocation();
+          const { lat, lng, accuracy, timestamp } = await getLocation();
 
           // Build FormData for FastAPI /analyze
           const formData = new FormData();
@@ -195,6 +293,8 @@ export default function ChatWidget() {
           formData.append("user_text", input.trim() || "Please analyze this civic issue");
           formData.append("latitude", lat.toString());
           formData.append("longitude", lng.toString());
+          formData.append("accuracy", accuracy.toString());
+          formData.append("timestamp", timestamp);
 
           const res = await fetch(`${API_URL}/analyze`, {
             method: "POST",
@@ -209,10 +309,30 @@ export default function ChatWidget() {
 
           const preview: ImageTicketPreview = await res.json();
 
+          if (preview.confidence < 0.6) {
+            setPendingImagePreview(null);
+            setPendingImageFile(null);
+            setPendingLocation(null);
+            setLocationConfirmed(false);
+            setDuplicateContext(null);
+            addBotMessage(
+              "⚠️ I am not confident enough about this image analysis (confidence below 0.6). Please describe the issue manually so I can file it accurately.",
+            );
+            return;
+          }
+
           // Store for confirmation
           setPendingImagePreview(preview);
           setPendingImageFile(file);
           setPendingComplaint(null); // clear any text-based pending
+          setDuplicateContext(null);
+          setPendingLocation({
+            lat: preview.latitude,
+            lng: preview.longitude,
+            accuracy: preview.accuracy,
+            timestamp: preview.timestamp,
+          });
+          setLocationConfirmed(false);
 
           addBotMessage(preview.confirm_prompt, { imagePreview: preview });
         } catch (err) {
@@ -235,19 +355,45 @@ export default function ChatWidget() {
 
     setInput("");
 
-    // If the user typed YES and we have a pending image preview → confirm via FastAPI
-    if (pendingImagePreview && /^(yes|confirm|submit|haan|ha|हां)$/i.test(trimmed)) {
+    if (duplicateContext && /^(upvote|support|same)$/i.test(trimmed)) {
       setMessages((prev) => [...prev, { id: uid(), role: "user", text: trimmed }]);
       scrollToBottom();
-      await confirmImageTicket();
+      await upvoteDuplicate();
+      return;
+    }
+
+    if (duplicateContext && /^(yes again|upload anyway|force|submit anyway)$/i.test(trimmed)) {
+      setMessages((prev) => [...prev, { id: uid(), role: "user", text: trimmed }]);
+      scrollToBottom();
+      if (duplicateContext.mode === "image") {
+        await confirmImageTicket(true);
+      } else {
+        await submitComplaint(true);
+      }
+      return;
+    }
+
+    // If the user typed YES and we have a pending image preview → confirm via FastAPI
+    if (pendingImagePreview && /^(yes|confirm|submit|haan|ha|हां)$/i.test(trimmed)) {
+      if (!locationConfirmed || !pendingLocation) {
+        addBotMessage("📍 Please confirm your location first. You can move the pin and then tap **Confirm location**.");
+        return;
+      }
+      setMessages((prev) => [...prev, { id: uid(), role: "user", text: trimmed }]);
+      scrollToBottom();
+      await confirmImageTicket(false);
       return;
     }
 
     // If the user typed YES and we have a pending text-based complaint
     if (pendingComplaint && /^(yes|confirm|submit|haan|ha|हां)$/i.test(trimmed)) {
+      if (!locationConfirmed || !pendingLocation) {
+        addBotMessage("📍 Please confirm your location first. You can move the pin and then tap **Confirm location**.");
+        return;
+      }
       setMessages((prev) => [...prev, { id: uid(), role: "user", text: trimmed }]);
       scrollToBottom();
-      await submitComplaint();
+      await submitComplaint(false);
       return;
     }
 
@@ -262,21 +408,47 @@ export default function ChatWidget() {
       historyRef.current.push({ role: "model", text: res.reply });
 
       if (res.extracted) {
+        if (res.extracted.confidence < 0.6) {
+          setPendingComplaint(null);
+          setPendingImagePreview(null);
+          setPendingImageDataUrl(null);
+          setPendingLocation(null);
+          setLocationConfirmed(false);
+          setDuplicateContext(null);
+          addBotMessage(
+            "⚠️ I am not confident enough in the issue extraction (confidence below 0.6). Please describe the issue manually with key details (what, where, urgency).",
+          );
+          return;
+        }
+
         setPendingComplaint(res.extracted);
         setPendingImagePreview(null);
-      }
+        setPendingImageDataUrl(null);
+        setDuplicateContext(null);
+        const currentLocation = await getLocation();
+        setPendingLocation(currentLocation);
+        setLocationConfirmed(false);
 
-      addBotMessage(res.reply, { extracted: res.extracted });
+        let geoDetails: GeoDetails | null = null;
+        try {
+          const geoRes = await fetch(`${API_URL}/geocode?lat=${currentLocation.lat}&lng=${currentLocation.lng}`);
+          if (geoRes.ok) geoDetails = await geoRes.json();
+        } catch { /* non-fatal */ }
+
+        addBotMessage(res.reply, { extracted: res.extracted, geoDetails });
+      } else {
+        addBotMessage(res.reply);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong. Please try again.";
       addBotMessage(`⚠️ ${msg}`);
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, pendingComplaint, pendingImagePreview, scrollToBottom, addBotMessage]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [input, isLoading, pendingComplaint, pendingImagePreview, duplicateContext, scrollToBottom, addBotMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ----- confirm image ticket via FastAPI /confirm ----- */
-  const confirmImageTicket = useCallback(async () => {
+  const confirmImageTicket = useCallback(async (forceSubmit = false) => {
     if (!pendingImagePreview || !pendingImageFile) return;
     setSubmitting(true);
 
@@ -289,16 +461,23 @@ export default function ChatWidget() {
       }
 
       const formData = new FormData();
+      const submitLocation = pendingLocation ?? {
+        lat: pendingImagePreview.latitude,
+        lng: pendingImagePreview.longitude,
+        accuracy: pendingImagePreview.accuracy,
+        timestamp: pendingImagePreview.timestamp,
+      };
       formData.append("image", pendingImageFile);
       formData.append("user_text", "Confirmed by user");
-      formData.append("latitude", pendingImagePreview.latitude.toString());
-      formData.append("longitude", pendingImagePreview.longitude.toString());
+      formData.append("latitude", submitLocation.lat.toString());
+      formData.append("longitude", submitLocation.lng.toString());
+      formData.append("accuracy", submitLocation.accuracy.toString());
+      formData.append("timestamp", submitLocation.timestamp);
       formData.append("child_id", pendingImagePreview.child_id.toString());
       formData.append("title", pendingImagePreview.title);
       formData.append("description", pendingImagePreview.description);
       formData.append("severity_db", pendingImagePreview.severity_db);
-      formData.append("ward_name", pendingImagePreview.ward_name);
-      formData.append("pincode", pendingImagePreview.pincode);
+      formData.append("force_submit", String(forceSubmit));
 
       const res = await fetch(`${API_URL}/confirm`, {
         method: "POST",
@@ -308,7 +487,15 @@ export default function ChatWidget() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Submission failed" }));
-        throw new Error(err.detail || "Failed to submit complaint");
+        const detail = err?.detail;
+        if (res.status === 409 && detail?.code === "DUPLICATE_DETECTED" && detail?.duplicate) {
+          setDuplicateContext({ mode: "image", duplicate: detail.duplicate as DuplicateMatch });
+          addBotMessage(
+            `⚠️ Similar complaint already exists (Ticket **${detail.duplicate.ticket_id}**, ${detail.duplicate.distance_m}m away, status: **${detail.duplicate.status}**). Type **UPVOTE** to support it, or type **YES AGAIN** to upload anyway.`,
+          );
+          return;
+        }
+        throw new Error(detail?.message || detail || "Failed to submit complaint");
       }
 
       const created = await res.json();
@@ -316,6 +503,10 @@ export default function ChatWidget() {
       setSubmitted(true);
       setPendingImagePreview(null);
       setPendingImageFile(null);
+      setPendingImageDataUrl(null);
+      setPendingLocation(null);
+      setDuplicateContext(null);
+      setLocationConfirmed(false);
       addBotMessage(
         `✅ **Complaint submitted successfully!**\n\n🎫 Ticket ID: **${created.ticket_id}**\n📋 Issue: **${created.issue_name}**\n🏢 Department: **${created.authority}**\nStatus: **Submitted**\n\nYou can track your complaint from the "Your Tickets" section. Is there anything else I can help you with?`,
       );
@@ -325,10 +516,10 @@ export default function ChatWidget() {
     } finally {
       setSubmitting(false);
     }
-  }, [pendingImagePreview, pendingImageFile, addBotMessage]);
+  }, [pendingImagePreview, pendingImageFile, pendingLocation, addBotMessage]);
 
   /* ----- submit text-based complaint to Supabase ----- */
-  const submitComplaint = useCallback(async () => {
+  const submitComplaint = useCallback(async (forceSubmit = false) => {
     if (!pendingComplaint) return;
     setSubmitting(true);
 
@@ -343,33 +534,48 @@ export default function ChatWidget() {
         return;
       }
 
+      const submitLocation = pendingLocation ?? (await getLocation());
+      const categoryId = categoryFromIssueType(pendingComplaint.issue_type);
+      const severityLevel = severityToLevel(pendingComplaint.severity);
+
       const res = await fetch("/api/complaints", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           citizen_id: user.id,
-          category_id: pendingComplaint.category_id,
+          category_id: categoryId,
+          issue_type: pendingComplaint.issue_type,
           title: pendingComplaint.title,
           description: pendingComplaint.description,
-          severity: pendingComplaint.severity,
-          latitude: pendingComplaint.latitude,
-          longitude: pendingComplaint.longitude,
-          ward_name: pendingComplaint.ward_name,
-          pincode: pendingComplaint.pincode,
-          address_text: pendingComplaint.address_text,
-          assigned_department: pendingComplaint.assigned_department,
+          severity: severityLevel,
+          latitude: submitLocation.lat,
+          longitude: submitLocation.lng,
+          accuracy: submitLocation.accuracy,
+          timestamp: submitLocation.timestamp,
           city: "Delhi",
+          force_submit: forceSubmit,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
+        if (res.status === 409 && data?.code === "DUPLICATE_DETECTED" && data?.duplicate) {
+          setDuplicateContext({ mode: "text", duplicate: data.duplicate as DuplicateMatch });
+          addBotMessage(
+            `⚠️ Similar complaint already exists (Ticket **${data.duplicate.ticket_id}**, ${data.duplicate.distance_m}m away, status: **${data.duplicate.status}**). Type **UPVOTE** to support it, or type **YES AGAIN** to upload anyway.`,
+          );
+          setSubmitting(false);
+          return;
+        }
         throw new Error(data.error || "Failed to submit complaint");
       }
 
       setSubmitted(true);
       setPendingComplaint(null);
+      setPendingLocation(null);
+      setDuplicateContext(null);
+      setLocationConfirmed(false);
       addBotMessage(
         `✅ **Complaint submitted successfully!**\n\n🎫 Ticket ID: **${data.complaint?.ticket_id ?? data.complaint?.id}**\nStatus: **Submitted**\n\nYou can track your complaint from the "Your Tickets" section. Is there anything else I can help you with?`,
       );
@@ -379,7 +585,37 @@ export default function ChatWidget() {
     } finally {
       setSubmitting(false);
     }
-  }, [pendingComplaint, addBotMessage]);
+  }, [pendingComplaint, pendingLocation, addBotMessage]);
+
+  const upvoteDuplicate = useCallback(async () => {
+    if (!duplicateContext?.duplicate?.id) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/complaints", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ complaint_id: duplicateContext.duplicate.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to upvote complaint");
+
+      setDuplicateContext(null);
+      setPendingComplaint(null);
+      setPendingImagePreview(null);
+      setPendingImageFile(null);
+      setPendingImageDataUrl(null);
+      setPendingLocation(null);
+      setLocationConfirmed(false);
+      addBotMessage(
+        `✅ Upvoted ticket **${data.complaint?.ticket_id ?? duplicateContext.duplicate.ticket_id}**. Current status: **${data.complaint?.status ?? duplicateContext.duplicate.status}**. Thank you for supporting status transparency.`,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Upvote failed";
+      addBotMessage(`❌ ${msg}.`);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [duplicateContext, addBotMessage]);
 
   /* ----- auto-scroll on new messages ----- */
   useEffect(scrollToBottom, [messages, scrollToBottom]);
@@ -469,18 +705,19 @@ export default function ChatWidget() {
                   {/* Text-based extracted complaint summary table */}
                   {msg.extracted && (
                     <div className="mt-3 rounded-lg border border-gray-300 bg-white p-3 text-xs dark:border-gray-600 dark:bg-gray-900">
-                      <p className="mb-2 font-semibold text-gray-700 dark:text-gray-200">📋 Complaint Summary</p>
+                      <p className="mb-2 font-semibold text-gray-700 dark:text-gray-200">📋 Confirm Your Complaint</p>
                       <table className="w-full text-left">
                         <tbody>
-                          {[
-                            ["Title", msg.extracted.title],
-                            ["Category", msg.extracted.category_name],
-                            ["Severity", `${msg.extracted.severity} — ${msg.extracted.severity_label}`],
-                            ["Ward", msg.extracted.ward_name],
-                            ["Pincode", msg.extracted.pincode],
-                            ["Address", msg.extracted.address_text],
-                            ["Department", msg.extracted.assigned_department],
-                          ].map(([label, value]) => (
+                          {(
+                            [
+                              ["Title", msg.extracted.title],
+                              ["Issue Type", msg.extracted.issue_type],
+                              ["Severity", msg.extracted.severity],
+                              ["Location", msg.geoDetails?.formatted_address || "Detecting\u2026"],
+                              ["Description", msg.extracted.description],
+                              ["DIGIPIN", msg.geoDetails?.digipin || "Detecting\u2026"],
+                            ] as [string, string][]
+                          ).map(([label, value]) => (
                             <tr key={label} className="border-b border-gray-100 last:border-0 dark:border-gray-700">
                               <td className="py-1 pr-2 font-medium text-gray-500 dark:text-gray-400">{label}</td>
                               <td className="py-1 text-gray-800 dark:text-gray-200">{value}</td>
@@ -488,8 +725,8 @@ export default function ChatWidget() {
                           ))}
                         </tbody>
                       </table>
-                      <p className="mt-2 text-center text-[11px] text-gray-500 dark:text-gray-400">
-                        Type <strong>YES</strong> to submit, or tell me what to change.
+                      <p className="mt-2 text-center font-semibold text-amber-600 dark:text-amber-400">
+                        Type <strong>YES</strong> to confirm submission
                       </p>
                     </div>
                   )}
@@ -497,16 +734,23 @@ export default function ChatWidget() {
                   {/* Image-based ticket preview from FastAPI /analyze */}
                   {msg.imagePreview && (
                     <div className="mt-3 rounded-lg border border-gray-300 bg-white p-3 text-xs dark:border-gray-600 dark:bg-gray-900">
-                      <p className="mb-2 font-semibold text-gray-700 dark:text-gray-200">📷 Image Analysis Result</p>
+                      <p className="mb-2 font-semibold text-gray-700 dark:text-gray-200">Confirm Your Complaint</p>
+                      {pendingImageDataUrl && (
+                        <img
+                          src={pendingImageDataUrl}
+                          alt="Issue photo"
+                          className="mb-2 rounded-lg max-h-32 w-full object-cover"
+                        />
+                      )}
                       <table className="w-full text-left">
                         <tbody>
                           {[
                             ["Title", msg.imagePreview.title],
-                            ["Issue", msg.imagePreview.issue_name],
+                            ["Issue Type", msg.imagePreview.issue_name],
                             ["Severity", `${msg.imagePreview.severity} (${msg.imagePreview.severity_db})`],
-                            ["Ward", msg.imagePreview.ward_name],
-                            ["Pincode", msg.imagePreview.pincode],
-                            ["Authority", msg.imagePreview.authority],
+                            ["Location", msg.imagePreview.formatted_address],
+                            ["Description", msg.imagePreview.description],
+                            ["DIGIPIN", msg.imagePreview.digipin],
                           ].map(([label, value]) => (
                             <tr key={label} className="border-b border-gray-100 last:border-0 dark:border-gray-700">
                               <td className="py-1 pr-2 font-medium text-gray-500 dark:text-gray-400">{label}</td>
@@ -515,9 +759,8 @@ export default function ChatWidget() {
                           ))}
                         </tbody>
                       </table>
-                      <p className="mt-1 text-gray-600 dark:text-gray-300">{msg.imagePreview.description}</p>
-                      <p className="mt-2 text-center text-[11px] text-gray-500 dark:text-gray-400">
-                        Type <strong>YES</strong> to submit this ticket, or describe the issue differently.
+                      <p className="mt-2 text-center font-semibold text-amber-600 dark:text-amber-400">
+                        Type <strong>YES</strong> to confirm submission
                       </p>
                     </div>
                   )}
@@ -548,6 +791,50 @@ export default function ChatWidget() {
 
           {/* -- Input bar -- */}
           <div className="border-t border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+            {hasPending && pendingLocation && (
+              <div className="mb-2 rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800">
+                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">Detected location</p>
+                <p className="mb-2 text-[11px] text-gray-600 dark:text-gray-300">
+                  Lat {pendingLocation.lat.toFixed(6)}, Lng {pendingLocation.lng.toFixed(6)} | Accuracy {Math.round(pendingLocation.accuracy)}m
+                </p>
+                <LocationPinPicker
+                  lat={pendingLocation.lat}
+                  lng={pendingLocation.lng}
+                  onPinMove={(lat, lng) => {
+                    setPendingLocation((prev) => ({
+                      lat,
+                      lng,
+                      accuracy: prev?.accuracy ?? 9999,
+                      timestamp: new Date().toISOString(),
+                    }));
+                    setLocationConfirmed(false);
+                  }}
+                />
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setLocationConfirmed(true)}
+                    className="rounded-md bg-[#4f392e] px-2 py-1 text-xs font-medium text-white hover:bg-[#b4725a]"
+                  >
+                    Confirm location
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const loc = await getLocation();
+                      setPendingLocation(loc);
+                      setLocationConfirmed(false);
+                    }}
+                    className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                  >
+                    Move pin to GPS
+                  </button>
+                  <span className={`text-[11px] ${locationConfirmed ? "text-green-600" : "text-amber-600"}`}>
+                    {locationConfirmed ? "Location confirmed" : "Move pin if needed, then confirm"}
+                  </span>
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               {/* + button for image upload */}
               <button
@@ -566,7 +853,7 @@ export default function ChatWidget() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={hasPending ? "Type YES to submit…" : "Describe your issue…"}
+                placeholder={duplicateContext ? "Type UPVOTE or YES AGAIN..." : hasPending ? "Confirm location, then type YES to submit..." : "Describe your issue..."}
                 disabled={submitting}
                 className="flex-1 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-800 outline-none transition-colors placeholder:text-gray-400 focus:border-[#b4725a] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-purple-500"
               />

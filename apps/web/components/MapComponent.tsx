@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import {
   MapContainer,
   TileLayer,
@@ -7,8 +8,11 @@ import {
   Popup,
   useMap,
 } from "react-leaflet";
-import MarkerClusterGroup from "react-leaflet-markercluster";
-import "react-leaflet-markercluster/styles";
+import dynamic from "next/dynamic";
+const MarkerClusterGroup = dynamic(
+  () => import("react-leaflet-markercluster").then((mod) => mod.default ?? mod),
+  { ssr: false }
+) as React.ComponentType<{ children: React.ReactNode }>;
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/src/lib/supabase";
@@ -205,6 +209,7 @@ export default function MapComponent() {
 
   useEffect(() => {
     setMounted(true);
+    import("react-leaflet-markercluster/styles");
 
     import("leaflet").then((L) => {
       delete (L.Icon.Default.prototype as any)._getIconUrl;
