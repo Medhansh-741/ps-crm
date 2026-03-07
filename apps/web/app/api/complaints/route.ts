@@ -428,6 +428,9 @@ export async function POST(req: NextRequest) {
 
   // Build PostGIS WKT POINT string
   const locationWKT = `SRID=4326;POINT(${longitude} ${latitude})`;
+  const ticketId = `CMP-${Date.now().toString().slice(-8)}-${Math.floor(Math.random() * 1000)
+    .toString()
+    .padStart(3, "0")}`;
 
   const duplicate = await findRecentDuplicate({
     categoryId: category_id,
@@ -449,6 +452,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase
     .from("complaints")
     .insert({
+      ticket_id: ticketId,
       citizen_id: canonicalComplaint.user_id,
       category_id,
       title,

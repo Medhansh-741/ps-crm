@@ -1,11 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import dynamic from "next/dynamic"
 import WorkerStatsCards from "@/components/worker-dashboard/WorkerStatsCards"
 import CurrentTaskCard from "@/components/worker-dashboard/WorkerCurrentTaskCard"
 import UrgentTaskCard from "@/components/worker-dashboard/UrgentTaskCard"
 import AssignedTasksTable from "@/components/worker-dashboard/AssignedTasksTable"
-import TaskMapWidget from "@/components/worker-dashboard/WorkerTaskMapWidget"
 import RecentActivityPanel from "@/components/worker-dashboard/RecentActivityPanel"
 import { supabase } from "@/src/lib/supabase"
 import {
@@ -16,6 +16,10 @@ import {
   type DashboardStats,
   type DashboardTask,
 } from "@/components/worker-dashboard/dashboard-types"
+
+const TaskMapWidget = dynamic(() => import("@/components/worker-dashboard/WorkerTaskMapWidget"), {
+  ssr: false,
+})
 
 type ComplaintWithCategory = {
   id: string
