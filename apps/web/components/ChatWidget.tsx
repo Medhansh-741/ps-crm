@@ -183,19 +183,26 @@ export default function ChatWidget() {
       );
     });
 
-  /** Get Supabase auth token */
+  /** Get Supabase auth token — works for both email/password and Google OAuth */
   const getAuthToken = async (): Promise<string | null> => {
-    // First check if user is actually authenticated
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-    
-    // Then get the session for the access token
+    // Try getSession first (works immediately for email/password)
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.access_token) return session.access_token;
-    
-    // Fallback: try refreshing the session
+
+    // Force a session refresh — required for Google OAuth PKCE flow
+    // where the session may not be hydrated yet after redirect
     const { data: refreshData } = await supabase.auth.refreshSession();
-    return refreshData.session?.access_token ?? null;
+    if (refreshData.session?.access_token) return refreshData.session.access_token;
+
+    // Confirm user actually exists before giving up
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    // Session exists but is still hydrating (common after Google OAuth redirect)
+    // Wait briefly and retry once
+    await new Promise((res) => setTimeout(res, 500));
+    const { data: { session: retrySession } } = await supabase.auth.getSession();
+    return retrySession?.access_token ?? null;
   };
 
   /* ----- open / close with GSAP ----- */
