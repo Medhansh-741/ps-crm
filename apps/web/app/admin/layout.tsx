@@ -1,7 +1,16 @@
 'use client';
 
 import { useState } from "react";
-import { Flame, LayoutGrid, MapPin, Menu, Ticket } from "lucide-react";
+import {
+  ClipboardList,
+  FileBarChart2,
+  FolderTree,
+  LayoutGrid,
+  Menu,
+  Settings,
+  Shield,
+  Users,
+} from "lucide-react";
 import Sidebar, { defaultSidebarConfig, SidebarNavigationItem } from "@/components/Sidebar";
 import { usePathname } from "next/navigation";
 
@@ -12,9 +21,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const adminNavigation: SidebarNavigationItem[] = [
     { id: "dashboard", name: "Dashboard", icon: <LayoutGrid size={20} strokeWidth={2.5} />, href: "/admin", isActive: pathname === "/admin" },
-    { id: "track", name: "Your Tickets", icon: <Ticket size={20} strokeWidth={2} />, href: "/admin/tickets", isActive: pathname === "/admin/tickets" },
-    { id: "projects", name: "Heatmap", icon: <Flame size={20} strokeWidth={2} />, href: "/admin/heatmap", isActive: pathname === "/admin/heatmap" },
-    { id: "reports", name: "Nearby Tickets", icon: <MapPin size={20} strokeWidth={2} />, href: "/admin/reports", isActive: pathname === "/admin/reports" },
+    { id: "complaints", name: "Complaints", icon: <ClipboardList size={20} strokeWidth={2} />, href: "/admin/complaints", isActive: pathname === "/admin/complaints" },
+    { id: "authorities", name: "Authorities", icon: <Shield size={20} strokeWidth={2} />, href: "/admin/authorities", isActive: pathname === "/admin/authorities" },
+    { id: "workers", name: "Workers", icon: <Users size={20} strokeWidth={2} />, href: "/admin/workers", isActive: pathname === "/admin/workers" },
+    { id: "categories", name: "Categories", icon: <FolderTree size={20} strokeWidth={2} />, href: "/admin/categories", isActive: pathname === "/admin/categories" },
+    { id: "reports", name: "Reports", icon: <FileBarChart2 size={20} strokeWidth={2} />, href: "/admin/reports", isActive: pathname === "/admin/reports" },
+    { id: "settings", name: "Settings", icon: <Settings size={20} strokeWidth={2} />, href: "/admin/settings", isActive: pathname === "/admin/settings" },
   ];
 
   const sidebarConfig = {
