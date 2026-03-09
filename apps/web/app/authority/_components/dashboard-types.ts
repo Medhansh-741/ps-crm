@@ -1,7 +1,5 @@
 // apps/web/app/authority/_components/dashboard-types.ts
 
-// ─── Enums (defined locally to avoid DB type import issues) ──────────────────
-
 export type ComplaintStatus =
   | "submitted"
   | "under_review"
@@ -13,8 +11,7 @@ export type ComplaintStatus =
 
 export type SeverityLevel = "L1" | "L2" | "L3" | "L4"
 
-// ─── Row shapes ───────────────────────────────────────────────────────────────
-
+// Matches complaints table exactly per database.types.ts
 export type AuthorityComplaintRow = {
   id: string
   ticket_id: string
@@ -53,8 +50,6 @@ export type DashboardStats = {
   slaBreached: number
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 export const PENDING_STATUSES:   ComplaintStatus[] = ["submitted", "under_review"]
 export const ACTIVE_STATUSES:    ComplaintStatus[] = ["assigned", "in_progress"]
 export const ESCALATED_STATUSES: ComplaintStatus[] = ["escalated"]
@@ -65,26 +60,10 @@ export const SEVERITY_RANK: Record<SeverityLevel, number> = {
 }
 
 export const SEVERITY_META: Record<SeverityLevel, { label: string; dot: string; badge: string }> = {
-  L1: {
-    label: "L1",
-    dot:   "bg-blue-400",
-    badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-  },
-  L2: {
-    label: "L2",
-    dot:   "bg-yellow-400",
-    badge: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
-  },
-  L3: {
-    label: "L3 High",
-    dot:   "bg-orange-500",
-    badge: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
-  },
-  L4: {
-    label: "L4 Critical",
-    dot:   "bg-red-500",
-    badge: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-  },
+  L1: { label: "L1", dot: "bg-blue-400",   badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
+  L2: { label: "L2", dot: "bg-yellow-400", badge: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" },
+  L3: { label: "L3 High",     dot: "bg-orange-500", badge: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" },
+  L4: { label: "L4 Critical", dot: "bg-red-500",    badge: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
 }
 
 export const STATUS_META: Record<ComplaintStatus, { label: string; badge: string }> = {
@@ -106,8 +85,6 @@ export const STATUS_CHART_COLOR: Record<ComplaintStatus, string> = {
   rejected:     "#f87171",
   escalated:    "#c084fc",
 }
-
-// ─── Pure helpers ─────────────────────────────────────────────────────────────
 
 export function monthLabel(date: Date): string {
   return date.toLocaleDateString("en-IN", { month: "short", year: "2-digit" })
@@ -144,12 +121,10 @@ export function getUrgentTickets(
   limit = 8
 ): AuthorityComplaintRow[] {
   return complaints
-    .filter(
-      c =>
-        c.status !== "resolved" &&
-        c.status !== "rejected" &&
-        (ESCALATED_STATUSES.includes(c.status) ||
-          URGENT_SEVERITIES.includes(c.effective_severity))
+    .filter(c =>
+      c.status !== "resolved" &&
+      c.status !== "rejected" &&
+      (ESCALATED_STATUSES.includes(c.status) || URGENT_SEVERITIES.includes(c.effective_severity))
     )
     .sort((a, b) => {
       const diff = SEVERITY_RANK[b.effective_severity] - SEVERITY_RANK[a.effective_severity]

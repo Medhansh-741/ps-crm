@@ -1,18 +1,8 @@
 // apps/web/app/authority/page.tsx
+"use client"
 
-"use client";
-
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase } from "@/src/lib/supabase";
-import { MapPin } from "lucide-react";
-import Link from "next/link";
-
-import AuthorityStatsCards      from "./_components/AuthorityStatsCards";
-import AuthorityTrendChart      from "./_components/AuthorityTrendChart";
-import AuthorityStatusBreakdown from "./_components/AuthorityStatusBreakdown";
-import AuthorityRecentTickets   from "./_components/AuthorityRecentTickets";
-import AuthorityUrgentTickets   from "./_components/AuthorityUrgentTickets";
-
+import { useCallback, useEffect, useState } from "react"
+import { supabase } from "@/src/lib/supabase"
 import {
   buildSixMonthBuckets,
   computeStats,
@@ -22,202 +12,187 @@ import {
   type DashboardStats,
   type TrendPoint,
   type WorkerOption,
-} from "./_components/dashboard-types";
+} from "./_components/dashboard-types"
+
+import AuthorityStatsCards      from "./_components/AuthorityStatsCards"
+import AuthorityTrendChart      from "./_components/AuthorityTrendChart"
+import AuthorityStatusBreakdown from "./_components/AuthorityStatusBreakdown"
+import AuthorityRecentTickets   from "./_components/AuthorityRecentTickets"
+import AuthorityUrgentTickets   from "./_components/AuthorityUrgentTickets"
+
+// Exact columns that exist on complaints table per database.types.ts
+const COMPLAINT_SELECT =
+  "id, ticket_id, title, status, effective_severity, sla_breached, sla_deadline, " +
+  "escalation_level, created_at, resolved_at, address_text, assigned_worker_id, " +
+  "upvote_count, categories(name)"
+
+const TREND_SELECT = "status, created_at, resolved_at"
 
 export default function AuthorityDashboardPage() {
-  const [fullName,   setFullName]   = useState("");
-  const [department, setDepartment] = useState("");
-  const [complaints, setComplaints] = useState<AuthorityComplaintRow[]>([]);
-  const [workers,    setWorkers]    = useState<WorkerOption[]>([]);
-  const [trend,      setTrend]      = useState<TrendPoint[]>([]);
-  const [loading,    setLoading]    = useState(true);
-  const [error,      setError]      = useState<string | null>(null);
+  const [complaints, setComplaints] = useState<AuthorityComplaintRow[]>([])
+  const [workers,    setWorkers]    = useState<WorkerOption[]>([])
+  const [trend,      setTrend]      = useState<TrendPoint[]>([])
+  const [stats,      setStats]      = useState<DashboardStats>({
+    total: 0, pendingAction: 0, inProgress: 0, resolvedThisMonth: 0, slaBreached: 0,
+  })
+  const [department, setDepartment] = useState("")
+  const [loading,    setLoading]    = useState(true)
+  const [error,      setError]      = useState<string | null>(null)
 
-  const today = new Date().toLocaleDateString("en-IN", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric",
-  });
-
-  // ── Fetch all data ──────────────────────────────────────────────────────────
-
-  const fetchDashboard = useCallback(async () => {
-    setError(null);
-
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    const uid = authData?.user?.id;
-    if (authError || !uid) {
-      setError("Authentication failed.");
-      setLoading(false);
-      return;
+  const load = useCallback(async () => {
+    const { data: auth } = await supabase.auth.getUser()
+    const uid = auth?.user?.id
+    if (!uid) {
+      setError("Not authenticated.")
+      setLoading(false)
+      return
     }
 
-    const { data: profile, error: profileError } = await supabase
+    // Get officer's department from profiles
+    const { data: profile } = await supabase
       .from("profiles")
-      .select("id, full_name, department, role")
+      .select("department")
       .eq("id", uid)
-      .eq("role", "authority")
-      .maybeSingle();
+      .maybeSingle()
 
-    if (profileError || !profile) {
-      setError("Access denied. This dashboard is for authority officers only.");
-      setLoading(false);
-      return;
-    }
+    const dept = profile?.department ?? ""
+    setDepartment(dept)
 
-    setFullName(profile.full_name ?? "Officer");
-    setDepartment(profile.department ?? "");
+    const cutoff = new Date()
+    cutoff.setMonth(cutoff.getMonth() - 5)
+    cutoff.setDate(1)
+    cutoff.setHours(0, 0, 0, 0)
 
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-    sixMonthsAgo.setDate(1);
-    sixMonthsAgo.setHours(0, 0, 0, 0);
+    // Fetch complaints — try assigned_officer_id first, then assigned_department fallback
+    let allRows: any[] = []
+    let trendRows: any[] = []
 
-    const [
-      { data: allComplaints, error: cErr },
-      { data: trendRows,     error: tErr },
-      { data: workerRows },
-    ] = await Promise.all([
+    const [r1, r2] = await Promise.all([
       supabase
         .from("complaints")
-        .select(
-          "id, ticket_id, title, status, effective_severity, sla_breached, sla_deadline, " +
-          "escalation_level, created_at, resolved_at, address_text, " +
-          "assigned_worker_id, upvote_count, categories(name)"
-        )
+        .select(COMPLAINT_SELECT)
         .eq("assigned_officer_id", uid)
         .neq("status", "rejected"),
-
       supabase
         .from("complaints")
-        .select("status, created_at, resolved_at")
+        .select(TREND_SELECT)
         .eq("assigned_officer_id", uid)
-        .gte("created_at", sixMonthsAgo.toISOString()),
+        .gte("created_at", cutoff.toISOString()),
+    ])
 
-      supabase
-        .from("worker_profiles")
-        .select("worker_id, availability, department, profiles(full_name)")
-        .eq("department", profile.department ?? ""),
-    ]);
+    allRows   = r1.data ?? []
+    trendRows = r2.data ?? []
 
-    if (cErr || tErr) {
-      setError("Failed to load complaint data.");
-      setLoading(false);
-      return;
+    // Fallback: use assigned_department (the correct column name)
+    if (allRows.length === 0 && dept) {
+      const [r3, r4] = await Promise.all([
+        supabase
+          .from("complaints")
+          .select(COMPLAINT_SELECT)
+          .eq("assigned_department", dept)   // ← correct column
+          .neq("status", "rejected"),
+        supabase
+          .from("complaints")
+          .select(TREND_SELECT)
+          .eq("assigned_department", dept)   // ← correct column
+          .gte("created_at", cutoff.toISOString()),
+      ])
+      allRows   = r3.data ?? []
+      trendRows = r4.data ?? []
+
+      if (r3.error) {
+        setError("Failed to load complaints: " + r3.error.message)
+        setLoading(false)
+        return
+      }
     }
 
-    setComplaints((allComplaints ?? []) as unknown as AuthorityComplaintRow[]);
+    // Fetch workers in this department
+    const { data: wRows } = await supabase
+      .from("worker_profiles")
+      .select("worker_id, availability, department, profiles(full_name)")
+      .eq("department", dept)
 
-    setWorkers(
-      (workerRows ?? []).map((w: any) => ({
-        id:           w.worker_id,
-        full_name:    w.profiles?.full_name ?? "Unknown",
-        availability: w.availability,
-        department:   w.department,
-      }))
-    );
+    const mappedComplaints = allRows as unknown as AuthorityComplaintRow[]
 
-    const buckets = buildSixMonthBuckets();
-    (trendRows ?? []).forEach((row: any) => {
-      const key = monthLabel(new Date(row.created_at));
-      if (buckets[key]) buckets[key].submitted++;
-      if (row.status === "resolved" && row.resolved_at) {
-        const rKey = monthLabel(new Date(row.resolved_at));
-        if (buckets[rKey]) buckets[rKey].resolved++;
+    const mappedWorkers: WorkerOption[] = (wRows ?? []).map((w: any) => ({
+      id:           w.worker_id,
+      full_name:    w.profiles?.full_name ?? "Unknown",
+      availability: w.availability,
+      department:   w.department ?? dept,
+    }))
+
+    // Build 6-month trend buckets
+    const buckets = buildSixMonthBuckets()
+    ;(trendRows ?? []).forEach((r: any) => {
+      const mk = monthLabel(new Date(r.created_at))
+      if (buckets[mk]) buckets[mk].submitted++
+      if (r.status === "resolved" && r.resolved_at) {
+        const rk = monthLabel(new Date(r.resolved_at))
+        if (buckets[rk]) buckets[rk].resolved++
       }
-    });
-    setTrend(Object.entries(buckets).map(([month, v]) => ({ month, ...v })));
+    })
+    const trendPoints: TrendPoint[] = Object.entries(buckets).map(
+      ([month, v]) => ({ month, ...v })
+    )
 
-    setLoading(false);
-  }, []);
+    setComplaints(mappedComplaints)
+    setWorkers(mappedWorkers)
+    setStats(computeStats(mappedComplaints))
+    setTrend(trendPoints)
+    setError(null)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { void load() }, [load])
 
   useEffect(() => {
-    void fetchDashboard();
-    const id = window.setInterval(fetchDashboard, 30_000);
-    return () => window.clearInterval(id);
-  }, [fetchDashboard]);
+    const ch = supabase
+      .channel("authority-dashboard-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "complaints"      }, () => void load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "worker_profiles" }, () => void load())
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [load])
 
-  // ── Derived ─────────────────────────────────────────────────────────────────
-
-  const stats: DashboardStats = useMemo(() => computeStats(complaints), [complaints]);
-  const urgentTickets          = useMemo(() => getUrgentTickets(complaints), [complaints]);
-
-  // ── Error state ─────────────────────────────────────────────────────────────
-
-  if (!loading && error) {
-    return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
-        {error}
-      </div>
-    );
-  }
-
-  // ── Render ──────────────────────────────────────────────────────────────────
+  const urgentTickets = getUrgentTickets(complaints)
 
   return (
     <div className="space-y-6">
-
-      {/* ── Header ── */}
-      <div className="rounded-2xl border border-gray-100 bg-white px-6 py-5 dark:border-gray-800 dark:bg-gray-950">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-              {loading ? (
-                <span className="inline-block h-6 w-44 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
-              ) : (
-                `Welcome, ${fullName}`
-              )}
-            </h1>
-            <p className="mt-0.5 text-sm text-gray-400 dark:text-gray-500">
-              JanSamadhan · Authority Dashboard
-              {department && ` · ${department}`}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Quick link to map */}
-            <Link
-              href="/authority/map"
-              className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-600 hover:border-[#b4725a] hover:text-[#b4725a] transition-colors dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400"
-            >
-              <MapPin size={13} />
-              Open Map
-            </Link>
-            <p className="text-right text-sm text-gray-400 dark:text-gray-500">{today}</p>
-          </div>
-        </div>
+      <div>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+          Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"} 👋
+        </h1>
+        <p className="mt-0.5 text-sm text-gray-400">
+          {department ? `${department} · ` : ""}JanSamadhan Control Centre
+        </p>
       </div>
 
-      {/* ── KPI cards ── */}
-      <AuthorityStatsCards stats={stats} loading={loading} error={null} />
+      <AuthorityStatsCards stats={stats} loading={loading} error={error} />
 
-      {/* ── Trend + Status breakdown ── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        <div className="lg:col-span-3">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="xl:col-span-2">
           <AuthorityTrendChart trend={trend} department={department} loading={loading} />
         </div>
-        <div className="lg:col-span-2">
-          <AuthorityStatusBreakdown complaints={complaints} loading={loading} />
-        </div>
+        <AuthorityStatusBreakdown complaints={complaints} loading={loading} />
       </div>
 
-      {/* ── Recent tickets + Urgent panel ── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        <div className="lg:col-span-3">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="xl:col-span-2">
           <AuthorityRecentTickets
             complaints={complaints}
             workers={workers}
             loading={loading}
-            error={null}
-            onRefresh={fetchDashboard}
+            error={error}
+            onRefresh={load}
           />
         </div>
-        <div className="lg:col-span-2">
-          <AuthorityUrgentTickets
-            tickets={urgentTickets}
-            loading={loading}
-            error={null}
-          />
-        </div>
+        <AuthorityUrgentTickets
+          tickets={urgentTickets}
+          loading={loading}
+          error={error}
+        />
       </div>
-
     </div>
-  );
+  )
 }

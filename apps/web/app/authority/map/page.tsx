@@ -1,5 +1,7 @@
 // apps/web/app/authority/map/page.tsx
 
+"use client"
+
 import dynamic from "next/dynamic"
 
 const AuthorityMapView = dynamic(
