@@ -66,8 +66,13 @@ const STATUS_BADGE: Record<ComplaintStatus, string> = {
 }
 
 const STATUS_LABEL: Record<ComplaintStatus, string> = {
-  submitted: "Submitted", under_review: "Under Review", assigned: "Assigned",
-  in_progress: "In Progress", resolved: "Resolved", rejected: "Rejected", escalated: "Escalated",
+  submitted:    "Submitted",
+  under_review: "Under Review",
+  assigned:     "Assigned",
+  in_progress:  "In Progress",
+  resolved:     "Resolved",
+  rejected:     "Rejected",
+  escalated:    "Escalated",
 }
 
 const ALL_STATUSES: ComplaintStatus[] = [
@@ -168,6 +173,8 @@ export default function AuthorityTrackPage() {
     (statusFilter !== "all" ? 1 : 0) +
     (sevFilter    !== "all" ? 1 : 0) +
     (sortOrder    !== "newest" ? 1 : 0)
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -378,14 +385,10 @@ export default function AuthorityTrackPage() {
                       key={c.id}
                       className="border-b border-gray-50 dark:border-gray-800/60 hover:bg-gray-50/60 dark:hover:bg-gray-900/40 transition-colors"
                     >
-                      {/* Ticket ID */}
                       <td className="px-4 py-3">
-                        <span className="font-mono text-xs text-gray-500">
-                          {c.ticket_id}
-                        </span>
+                        <span className="font-mono text-xs text-gray-500">{c.ticket_id}</span>
                       </td>
 
-                      {/* Title + category */}
                       <td className="px-4 py-3">
                         <p className="max-w-[200px] truncate font-medium text-gray-800 dark:text-gray-200">
                           {c.title}
@@ -396,21 +399,18 @@ export default function AuthorityTrackPage() {
                         </p>
                       </td>
 
-                      {/* Severity */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${SEV_BADGE[c.effective_severity]}`}>
                           {SEV_LABEL[c.effective_severity]}
                         </span>
                       </td>
 
-                      {/* Status */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_BADGE[c.status]}`}>
                           {STATUS_LABEL[c.status]}
                         </span>
                       </td>
 
-                      {/* SLA */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         {c.sla_breached ? (
                           <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600">
@@ -421,12 +421,10 @@ export default function AuthorityTrackPage() {
                         )}
                       </td>
 
-                      {/* Age */}
                       <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-400">
                         {timeAgo(c.created_at)}
                       </td>
 
-                      {/* Actions */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <button
