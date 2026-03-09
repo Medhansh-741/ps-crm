@@ -129,7 +129,7 @@ export default function Header({
         
         {/* Left Side: theme toggle, Avatar, Logo & Socials */}
         <div className="flex items-center gap-6">
-          <div className="scale-75">
+          <div className="scale-65">
             <ThemeToggle />
           </div>
           <div className="flex items-center gap-3">
@@ -169,7 +169,7 @@ export default function Header({
               <span className="absolute -bottom-1 left-0 w-0 h-[2px] bg-current transition-all duration-300 group-hover:w-full"></span>
             </Link>
           ))}
-          <LoginButton3D className="scale-65" />
+          <LoginButton3D className="scale-65" onClick={() => (window.location.href = "/login")} />
         </nav>
 
         {/* Mobile Menu Toggle */}
@@ -201,7 +201,7 @@ export default function Header({
             </Link>
           ))}
           <div className="mt-4">
-            <LoginButton3D />
+            <LoginButton3D onClick={() => (window.location.href = "/login")} />
           </div>
           <div className="flex items-center gap-6 mt-4 pt-4 border-t border-current/20">
              {socialLinks.map((social) => (
