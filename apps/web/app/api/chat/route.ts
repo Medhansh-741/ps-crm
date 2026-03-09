@@ -4,7 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { SYSTEM_PROMPT } from "@/lib/gemini";
 import type { ChatMessage, GeminiResponse, ExtractedComplaint } from "@/lib/gemini";
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_API_KEY =
+  process.env.GEMINI_API_KEY ??
+  process.env.GOOGLE_API_KEY ??
+  process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 const GEMINI_PRIMARY_MODEL = process.env.GEMINI_PRIMARY_MODEL ?? "gemini-2.5-flash";
 const GEMINI_FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL ?? "gemini-2.0-flash";
 const ALLOWED_ORIGINS = new Set([
@@ -89,7 +92,7 @@ function sanitizeExtracted(value: unknown): ExtractedComplaint | null {
 export async function POST(req: NextRequest): Promise<NextResponse<GeminiResponse | { error: string }>> {
   if (!GEMINI_API_KEY) {
     return NextResponse.json(
-      { error: "GEMINI_API_KEY not configured" },
+      { error: "Gemini API key not configured (set GEMINI_API_KEY or GOOGLE_API_KEY)" },
       withCors(req, { status: 500 }),
     );
   }

@@ -17,7 +17,15 @@ const LocationPinPicker = dynamic(() => import("@/components/LocationPinPicker")
   ),
 });
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.jansamadhan.perkkk.dev";
+
+function toUserFacingError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error ?? "Unknown error");
+  if (/failed to fetch|networkerror|network request failed/i.test(message)) {
+    return `Could not reach complaint API at ${API_URL}. If you are running locally, start FastAPI on port 8000 or set NEXT_PUBLIC_API_URL.`;
+  }
+  return message;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -314,7 +322,7 @@ export default function ChatPanel({ onClose: _onClose }: { onClose?: () => void 
 
           addBotMessage(preview.confirm_prompt, { imagePreview: preview });
         } catch (err) {
-          const msg = err instanceof Error ? err.message : "Image analysis failed";
+          const msg = toUserFacingError(err);
           addBotMessage(`⚠️ ${msg}`);
         } finally {
           setIsLoading(false);
@@ -489,7 +497,7 @@ export default function ChatPanel({ onClose: _onClose }: { onClose?: () => void 
         `✅ **Complaint submitted successfully!**\n\n🎫 Ticket ID: **${created.ticket_id}**\n📋 Issue: **${created.issue_name}**\n🏢 Department: **${created.authority}**\nStatus: **Submitted**\n\nYou can track your complaint from the "Your Tickets" section. Is there anything else I can help you with?`,
       );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Submission failed";
+      const msg = toUserFacingError(err);
       addBotMessage(`❌ ${msg}. Please try again or contact support.`);
     } finally {
       setSubmitting(false);
