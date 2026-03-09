@@ -9,6 +9,7 @@ import { useGSAP } from "@gsap/react";
 import { X, Linkedin, Github } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import ThemeToggle from "./Themetogglebutton";
+import LoginButton3D from "./Loginbutton";
 
 if (typeof window !== "undefined") {
   gsap.registerPlugin(ScrollTrigger, useGSAP);
@@ -126,8 +127,11 @@ export default function Header({
     >
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
         
-        {/* Left Side: Avatar, Logo & Socials */}
+        {/* Left Side: theme toggle, Avatar, Logo & Socials */}
         <div className="flex items-center gap-6">
+          <div className="scale-75">
+            <ThemeToggle />
+          </div>
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -153,7 +157,7 @@ export default function Header({
           </div>
         </div>
 
-        {/* Right Side: Desktop Nav */}
+        {/* Right Side: Desktop Nav (links + login) */}
         <nav className="hidden md:flex items-center gap-4 text-sm font-medium tracking-widest uppercase">
           {navLinks.map((link, idx) => (
             <Link
@@ -165,17 +169,11 @@ export default function Header({
               <span className="absolute -bottom-1 left-0 w-0 h-[2px] bg-current transition-all duration-300 group-hover:w-full"></span>
             </Link>
           ))}
-          {/* theme toggle button for desktop */}
-          <div className="scale-75">
-            <ThemeToggle />
-          </div>
+          <LoginButton3D className="scale-65" />
         </nav>
 
-        {/* Mobile Menu Toggle and theme */}
+        {/* Mobile Menu Toggle */}
         <div className="md:hidden flex items-center gap-2">
-          <div className="scale-75 origin-right">
-            <ThemeToggle />
-          </div>
           <button
             className="flex flex-col gap-1.5 z-50 p-2"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -202,6 +200,9 @@ export default function Header({
               {link.label}
             </Link>
           ))}
+          <div className="mt-4">
+            <LoginButton3D />
+          </div>
           <div className="flex items-center gap-6 mt-4 pt-4 border-t border-current/20">
              {socialLinks.map((social) => (
               <Link key={social.id} href={social.href}>
