@@ -198,13 +198,13 @@ export default function AnimatedAuth({
         left: '45%',
         clipPath: 'polygon(20% 0%, 100% 0%, 100% 100%, 0% 100%)',
       }, 0)
-      .to(overlayTintRef.current, { autoAlpha: 0, duration: 0.35, ease: 'power1.in' }, 0.55)
-      .to(overlayLeftTextRef.current, { autoAlpha: 0, x: -50 }, 0)
-      .to(overlayRightTextRef.current, { autoAlpha: 1, x: 0 }, 0.2)
-      .to(leftBgRef.current, { autoAlpha: 0 }, 0)
-      .to(rightBgRef.current, { autoAlpha: 1 }, 0)
-      .to(signupFormRef.current, { autoAlpha: 0, x: 50 }, 0)
-      .to(loginFormRef.current, { autoAlpha: 1, x: 0 }, 0.2);
+        .to(overlayTintRef.current, { autoAlpha: 0, duration: 0.35, ease: 'power1.in' }, 0.55)
+        .to(overlayLeftTextRef.current, { autoAlpha: 0, x: -50 }, 0)
+        .to(overlayRightTextRef.current, { autoAlpha: 1, x: 0 }, 0.2)
+        .to(leftBgRef.current, { autoAlpha: 0 }, 0)
+        .to(rightBgRef.current, { autoAlpha: 1 }, 0)
+        .to(signupFormRef.current, { autoAlpha: 0, x: 50 }, 0)
+        .to(loginFormRef.current, { autoAlpha: 1, x: 0 }, 0.2);
     } else {
       // Transition to Sign Up State (Overlay moves left)
       tl.to(overlayTintRef.current, { autoAlpha: 1, duration: 0.25, ease: 'power1.out' }, 0)
@@ -212,94 +212,94 @@ export default function AnimatedAuth({
         left: '0%',
         clipPath: 'polygon(0% 0%, 100% 0%, 80% 100%, 0% 100%)',
       }, 0)
-      .to(overlayTintRef.current, { autoAlpha: 0, duration: 0.35, ease: 'power1.in' }, 0.55)
-      .to(overlayRightTextRef.current, { autoAlpha: 0, x: 50 }, 0)
-      .to(overlayLeftTextRef.current, { autoAlpha: 1, x: 0 }, 0.2)
-      .to(rightBgRef.current, { autoAlpha: 0 }, 0)
-      .to(leftBgRef.current, { autoAlpha: 1 }, 0)
-      .to(loginFormRef.current, { autoAlpha: 0, x: -50 }, 0)
-      .to(signupFormRef.current, { autoAlpha: 1, x: 0 }, 0.2);
+        .to(overlayTintRef.current, { autoAlpha: 0, duration: 0.35, ease: 'power1.in' }, 0.55)
+        .to(overlayRightTextRef.current, { autoAlpha: 0, x: 50 }, 0)
+        .to(overlayLeftTextRef.current, { autoAlpha: 1, x: 0 }, 0.2)
+        .to(rightBgRef.current, { autoAlpha: 0 }, 0)
+        .to(leftBgRef.current, { autoAlpha: 1 }, 0)
+        .to(loginFormRef.current, { autoAlpha: 0, x: -50 }, 0)
+        .to(signupFormRef.current, { autoAlpha: 1, x: 0 }, 0.2);
     }
   }, { dependencies: [isLogin], scope: containerRef });
 
   const handleLogin = async () => {
-  setError('');
-  setMessage('');
+    setError('');
+    setMessage('');
 
-  if (!isRecaptchaConfigured) {
-    setError('reCAPTCHA is not configured. Add NEXT_PUBLIC_RECAPTCHA_SITE_KEY in apps/web/.env.local and restart the dev server.');
-    return;
-  }
+    if (!isRecaptchaConfigured) {
+      setError('reCAPTCHA is not configured. Add NEXT_PUBLIC_RECAPTCHA_SITE_KEY in apps/web/.env.local and restart the dev server.');
+      return;
+    }
 
-  const token = recaptchaRef.current?.getValue();
-  if (!token) {
-    setError('Please complete the reCAPTCHA.');
-    return;
-  }
+    const token = recaptchaRef.current?.getValue();
+    if (!token) {
+      setError('Please complete the reCAPTCHA.');
+      return;
+    }
 
-  const verifyRes = await fetch('/api/verify-recaptcha', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token }),
-  });
-  const verifyData = await verifyRes.json();
-  if (!verifyData.success) {
-    const message =
-      typeof verifyData.message === 'string' && verifyData.message.trim().length > 0
-        ? verifyData.message
-        : 'reCAPTCHA verification failed. Please try again.';
-    setError(message);
-    recaptchaRef.current?.reset();
-    return;
-  }
+    const verifyRes = await fetch('/api/verify-recaptcha', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    const verifyData = await verifyRes.json();
+    if (!verifyData.success) {
+      const message =
+        typeof verifyData.message === 'string' && verifyData.message.trim().length > 0
+          ? verifyData.message
+          : 'reCAPTCHA verification failed. Please try again.';
+      setError(message);
+      recaptchaRef.current?.reset();
+      return;
+    }
 
-  setLoading(true);
+    setLoading(true);
 
-  const { data, error: loginError } = await supabase.auth.signInWithPassword({
-    email: loginEmail.trim(),
-    password: loginPassword,
-  });
+    const { data, error: loginError } = await supabase.auth.signInWithPassword({
+      email: loginEmail.trim(),
+      password: loginPassword,
+    });
 
-  if (loginError) {
-    setError(loginError.message);
+    if (loginError) {
+      setError(loginError.message);
+      setLoading(false);
+      recaptchaRef.current?.reset();
+      return;
+    }
+
+    const userId = data.user?.id;
+    if (!userId) {
+      setError('Login failed. Please try again.');
+      setLoading(false);
+      recaptchaRef.current?.reset();
+      return;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+
+    if (profileError || !profile) {
+      setError('Could not verify role. Please try again.');
+      await supabase.auth.signOut();
+      setLoading(false);
+      recaptchaRef.current?.reset();
+      return;
+    }
+
+    if (!roles.includes(profile.role as Role)) {
+      setError('Invalid user role. Please contact support.');
+      await supabase.auth.signOut();
+      setLoading(false);
+      recaptchaRef.current?.reset();
+      return;
+    }
+
     setLoading(false);
-    recaptchaRef.current?.reset();
-    return;
-  }
-
-  const userId = data.user?.id;
-  if (!userId) {
-    setError('Login failed. Please try again.');
-    setLoading(false);
-    recaptchaRef.current?.reset();
-    return;
-  }
-
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', userId)
-    .single();
-
-  if (profileError || !profile) {
-    setError('Could not verify role. Please try again.');
-    await supabase.auth.signOut();
-    setLoading(false);
-    recaptchaRef.current?.reset();
-    return;
-  }
-
-  if (!roles.includes(profile.role as Role)) {
-    setError('Invalid user role. Please contact support.');
-    await supabase.auth.signOut();
-    setLoading(false);
-    recaptchaRef.current?.reset();
-    return;
-  }
-
-  setLoading(false);
-  router.push(`/${profile.role}`);
-};
+    router.push(`/${profile.role}`);
+  };
 
   const handleSignup = async () => {
     if (!signupEmail || !signupPassword) {
@@ -390,17 +390,17 @@ export default function AnimatedAuth({
             {error || message}
           </div>
         )}
-        
+
         {/* === LOGIN FORM (Left Side) === */}
-        <div 
+        <div
           ref={loginFormRef}
           className="absolute left-0 top-0 w-full md:w-1/2 h-full flex flex-col justify-center px-8 md:px-12 opacity-0 -translate-x-12 pointer-events-auto z-10"
         >
           <h2 className="text-3xl font-bold text-[var(--auth-text)] mb-8">{loginTitle}</h2>
           <div className="space-y-4">
             <div className="relative border-b border-[var(--auth-border)] pb-2">
-              <input 
-                type="email" 
+              <input
+                type="email"
                 placeholder="Email"
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
@@ -411,9 +411,9 @@ export default function AnimatedAuth({
               </span>
             </div>
             <div className="relative border-b border-[var(--auth-border)] pb-2">
-              <input 
+              <input
                 type={showLoginPassword ? 'text' : 'password'}
-                placeholder="Password" 
+                placeholder="Password"
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
                 className="w-full bg-transparent outline-none text-[var(--auth-text)] text-sm placeholder-[var(--auth-placeholder)]"
@@ -449,7 +449,7 @@ export default function AnimatedAuth({
               reCAPTCHA is unavailable. Add NEXT_PUBLIC_RECAPTCHA_SITE_KEY in apps/web/.env.local and restart.
             </p>
           )}
-          <button 
+          <button
             onClick={handleLogin}
             disabled={loading}
             className="w-full mt-5 py-3 rounded-full text-white font-semibold transition-transform hover:scale-105"
@@ -486,15 +486,15 @@ export default function AnimatedAuth({
         </div>
 
         {/* === SIGN UP FORM (Right Side) === */}
-        <div 
+        <div
           ref={signupFormRef}
           className="absolute right-0 top-0 w-full md:w-1/2 h-full flex flex-col justify-start px-8 md:px-12 pointer-events-auto z-10 overflow-y-auto md:overflow-hidden pt-6"
         >
           <h2 className="text-2xl font-bold text-[var(--auth-text)] mb-4">{signupTitle}</h2>
           <div className="space-y-2.5">
             <div className="relative border-b border-[var(--auth-border)] pb-2">
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="Full name"
                 value={signupName}
                 onChange={(e) => setSignupName(e.target.value)}
@@ -505,9 +505,9 @@ export default function AnimatedAuth({
               </span>
             </div>
             <div className="relative border-b border-[var(--auth-border)] pb-2">
-              <input 
-                type="email" 
-                placeholder="Email" 
+              <input
+                type="email"
+                placeholder="Email"
                 value={signupEmail}
                 onChange={(e) => setSignupEmail(e.target.value)}
                 className="w-full bg-transparent outline-none text-[var(--auth-text)] text-xs placeholder-[var(--auth-placeholder)]"
@@ -517,8 +517,8 @@ export default function AnimatedAuth({
               </span>
             </div>
             <div className="relative border-b border-[var(--auth-border)] pb-2">
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="Phone"
                 value={signupPhone}
                 onChange={(e) => setSignupPhone(e.target.value)}
@@ -529,9 +529,9 @@ export default function AnimatedAuth({
               </span>
             </div>
             <div className="relative border-b border-[var(--auth-border)] pb-2">
-              <input 
+              <input
                 type={showSignupPassword ? 'text' : 'password'}
-                placeholder="Password" 
+                placeholder="Password"
                 value={signupPassword}
                 onChange={(e) => setSignupPassword(e.target.value)}
                 className="w-full bg-transparent outline-none text-[var(--auth-text)] text-xs placeholder-[var(--auth-placeholder)]"
@@ -562,7 +562,7 @@ export default function AnimatedAuth({
               </div>
             </div>
           </div>
-          <button 
+          <button
             onClick={handleSignup}
             disabled={loading}
             className="w-full mt-4 py-2.5 rounded-full text-white text-sm font-semibold transition-transform hover:scale-105"
@@ -625,20 +625,18 @@ export default function AnimatedAuth({
           />
 
           {/* Overlay Content Left (Visible when overlay is on the left) */}
-          <div 
+          <div
             ref={overlayLeftTextRef}
-            className="absolute inset-0 z-20 flex flex-col justify-center items-start px-12 w-[calc(100%/0.55*0.5)]"
+            className="absolute inset-0 z-20 flex flex-col justify-between pt-6 pb-6 items-start px-12 w-[calc(100%/0.55*0.5)]"
           >
             <h1
-              className="text-4xl font-bold mb-4 leading-tight"
+              className="text-4xl font-bold leading-tight"
               style={{ color: leftPanelTitleColor }}
             >
-              {leftPanelTitle.split(' ').map((word, i) => (
-                <React.Fragment key={i}>{word}<br/></React.Fragment>
-              ))}
+              {leftPanelTitle}
             </h1>
             <p
-              className="text-sm max-w-[200px] leading-relaxed"
+              className="text-sm max-w-[260px] leading-relaxed mt-3"
               style={{ color: leftPanelSubtitleColor }}
             >
               {leftPanelSubtitle}
@@ -646,20 +644,18 @@ export default function AnimatedAuth({
           </div>
 
           {/* Overlay Content Right (Visible when overlay is on the right) */}
-          <div 
+          <div
             ref={overlayRightTextRef}
-            className="absolute right-0 inset-y-0 z-20 flex flex-col justify-center items-end px-12 w-[calc(100%/0.55*0.5)] text-right opacity-0"
+            className="absolute right-0 inset-y-0 z-20 flex flex-col justify-between pt-6 pb-6 items-end px-12 w-[calc(100%/0.55*0.5)] text-right opacity-0"
           >
             <h1
-              className="text-4xl font-bold mb-4 leading-tight"
+              className="text-4xl font-bold leading-tight"
               style={{ color: rightPanelTitleColor }}
             >
-              {rightPanelTitle.split(' ').map((word, i) => (
-                <React.Fragment key={i}>{word}<br/></React.Fragment>
-              ))}
+              {rightPanelTitle}
             </h1>
             <p
-              className="text-sm max-w-[200px] leading-relaxed"
+              className="text-sm max-w-[260px] leading-relaxed mt-3"
               style={{ color: rightPanelSubtitleColor }}
             >
               {rightPanelSubtitle}

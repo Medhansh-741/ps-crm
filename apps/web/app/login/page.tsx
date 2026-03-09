@@ -39,24 +39,24 @@ export const loginAuthColors: Partial<AnimatedAuthProps> = {
 export default function LoginPage() {
   return (
     <div className="flex flex-col min-h-screen ">
-        <main>
-      <AnimatedAuth
-        {...loginAuthColors}
-        leftPanelSubtitle='Lorem ipsum dolor sit amet consectetur adipisicing.'
-        leftPanelTitle="STAY CONNECTED!"
-        rightPanelTitle='HELLO FRIEND!'
-        rightPanelSubtitle='Enter your personal details and start your journey with us.'
-        leftPanelImage='Image1.jpg'
-        rightPanelImage='Image2.jpg'
+      <main>
+        <AnimatedAuth
+          {...loginAuthColors}
+          leftPanelSubtitle='Create an account to organize citizen complaints and ensure transparent grievance resolution.'
+          leftPanelTitle="JOIN Jan-Seva!"
+          rightPanelTitle='WELCOME TO Jan-Seva!'
+          rightPanelSubtitle='Log in to your digital command center. Manage workflows, assign tasks, and track real-time progress.'
+          leftPanelImage='Image1.jpg'
+          rightPanelImage='Image2.jpg'
         // text color props can also be overridden here directly if needed
-      />
+        />
       </main>
       <MegaFooter
         brandName="Bits"
         tagline="Designing delightful digital experiences."
         socialLinks={[
           { platform: "twitter", href: "https://twitter.com" },
-          { platform: "github", href: "https://github.com/Medhansh-741/ps-crm"},
+          { platform: "github", href: "https://github.com/Medhansh-741/ps-crm" },
           { platform: "linkedin", href: "https://linkedin.com" },
         ]}
         showNewsletter={true}
