@@ -223,10 +223,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       />
 
       {/* Main content area - flex-1 fills remaining space naturally */}
-      <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col min-h-0 min-w-0 max-w-full overflow-x-hidden">
         {/* Fixed Header - edge to edge */}
-        <header className="sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
-          <div className="flex items-center justify-between gap-4 px-4 sm:px-6 py-4">
+        <header className="sticky top-0 z-[2100] bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+          <div className="flex items-center justify-between gap-4 px-4 sm:px-6 py-4 min-w-0 max-w-full">
             {/* Left side - Hamburger and Title */}
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <button 
@@ -268,7 +268,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   <div
                     role="menu"
                     aria-label="Notifications"
-                    className="absolute right-0 z-40 mt-2 w-80 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 p-2 shadow-lg"
+                    className="absolute right-0 z-[2000] mt-2 w-80 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 p-2 shadow-lg"
                   >
                     <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                       Latest Updates
@@ -324,7 +324,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   <div
                     role="menu"
                     aria-label="Profile menu"
-                    className="absolute right-0 z-40 mt-2 w-48 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 py-1 shadow-lg"
+                    className="absolute right-0 z-[2000] mt-2 w-48 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 py-1 shadow-lg"
                   >
                     <button
                       type="button"
@@ -343,7 +343,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page Content - edge to edge, no padding */}
-        <main className="flex-1 min-h-0">
+        <main className="flex-1 min-h-0 min-w-0 max-w-full overflow-x-hidden">
           {children}
         </main>
       </div>

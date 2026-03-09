@@ -22,7 +22,7 @@ export default function TicketDetail({
   const photos: string[] = complaint.photo_urls ?? [];
 
   return (
-    <div className="flex flex-col">
+    <div className="flex min-w-0 max-w-full flex-col overflow-x-hidden">
       {/* Back */}
       <button
         onClick={onBack}
@@ -35,13 +35,13 @@ export default function TicketDetail({
 
       {/* Photos */}
       {photos.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto mb-4 pb-1 -mx-3 px-3">
+        <div className="mb-4 flex max-w-full min-w-0 gap-2 overflow-x-auto pb-1">
           {photos.map((url: string, i: number) => (
             <img
               key={i}
               src={url}
               alt={`complaint photo ${i + 1}`}
-              className="h-44 w-64 object-cover rounded-xl shrink-0 shadow-sm"
+              className="h-44 w-[72vw] max-w-64 shrink-0 rounded-xl object-cover shadow-sm sm:w-56 md:w-64"
             />
           ))}
         </div>
@@ -61,13 +61,13 @@ export default function TicketDetail({
               {complaint.status.replace(/_/g, " ")}
             </span>
           </div>
-          <h2 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
+          <h2 className="break-words text-lg font-bold leading-tight text-gray-900 dark:text-white">
             {complaint.title}
           </h2>
           {(complaint.address_text || complaint.ward_name) && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1.5">
+            <p className="mt-1 flex items-start gap-1.5 text-sm text-gray-500 dark:text-gray-400">
               <MapPin size={13} />
-              {complaint.address_text || complaint.ward_name}
+              <span className="min-w-0 break-words">{complaint.address_text || complaint.ward_name}</span>
             </p>
           )}
         </div>
@@ -89,7 +89,7 @@ export default function TicketDetail({
 
       {/* Description */}
       <div className="rounded-xl bg-gray-50 dark:bg-white/5 p-4 mb-4">
-        <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+        <p className="break-words text-sm leading-relaxed text-gray-700 dark:text-gray-300">
           {complaint.description}
         </p>
       </div>

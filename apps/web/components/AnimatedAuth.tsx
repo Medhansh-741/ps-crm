@@ -92,7 +92,6 @@ export default function AnimatedAuth({
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
-  const [loginRole, setLoginRole] = useState<Role>('citizen');
   const [signupName, setSignupName] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
@@ -194,7 +193,11 @@ export default function AnimatedAuth({
   });
   const verifyData = await verifyRes.json();
   if (!verifyData.success) {
-    setError('reCAPTCHA verification failed. Please try again.');
+    const message =
+      typeof verifyData.message === 'string' && verifyData.message.trim().length > 0
+        ? verifyData.message
+        : 'reCAPTCHA verification failed. Please try again.';
+    setError(message);
     recaptchaRef.current?.reset();
     return;
   }
@@ -235,9 +238,8 @@ export default function AnimatedAuth({
     return;
   }
 
-  if (profile.role !== loginRole) {
-    setError('Wrong credentials');
-    setTimeout(() => setError(null), 1000);
+  if (!roles.includes(profile.role as Role)) {
+    setError('Invalid user role. Please contact support.');
     await supabase.auth.signOut();
     setLoading(false);
     recaptchaRef.current?.reset();
@@ -245,7 +247,7 @@ export default function AnimatedAuth({
   }
 
   setLoading(false);
-  router.push(`/${loginRole}`);
+  router.push(`/${profile.role}`);
 };
 
   const handleSignup = async () => {
@@ -371,23 +373,6 @@ export default function AnimatedAuth({
               </button>
             </div>
           </div>
-          <div className="mt-4">
-            <p className="text-[11px] mb-1.5" style={{ color: activePlaceholderColor }}>Login as</p>
-            <div className="flex flex-wrap gap-3">
-              {roles.map((role) => (
-                <label key={role} className="text-[11px] capitalize flex items-center gap-1.5" style={{ color: activePlaceholderColor }}>
-                  <input
-                    type="radio"
-                    name="login-role"
-                    value={role}
-                    checked={loginRole === role}
-                    onChange={() => setLoginRole(role)}
-                  />
-                  {role}
-                </label>
-              ))}
-            </div>
-          </div>
           {isRecaptchaConfigured ? (
             <ReCAPTCHA
               ref={recaptchaRef}
@@ -395,6 +380,15 @@ export default function AnimatedAuth({
               theme={isDark ? 'dark' : 'light'}
               size="normal"
               className="mt-4"
+              onExpired={() => {
+                setError('reCAPTCHA expired. Please complete it again.');
+              }}
+              onErrored={() => {
+                console.error(
+                  'reCAPTCHA widget error. This usually means the site key is invalid for this domain or key type.'
+                );
+                setError('reCAPTCHA failed to load. Please try again later.');
+              }}
             />
           ) : (
             <p className="mt-4 text-xs text-red-300">

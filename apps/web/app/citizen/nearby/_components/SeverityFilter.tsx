@@ -16,7 +16,7 @@ const LEVELS: Array<{ level: number; key: "L1" | "L2" | "L3" | "L4" }> = [
 
 export default function SeverityFilter({ maxLevel, onChange }: SeveritySliderProps) {
   return (
-    <div className="flex flex-col gap-2 px-3 py-3
+    <div className="flex min-w-0 max-w-full flex-col gap-2 overflow-x-hidden px-3 py-3
       bg-white dark:bg-gray-900
       border-b border-gray-200 dark:border-gray-800">
 
@@ -36,7 +36,7 @@ export default function SeverityFilter({ maxLevel, onChange }: SeveritySliderPro
       </div>
 
       {/* Big pill buttons */}
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid min-w-0 max-w-full grid-cols-4 gap-1.5">
         {LEVELS.map(({ level, key }) => {
           const sev = getSeverityConfig(key);
           const isActive = level <= maxLevel;
@@ -45,7 +45,7 @@ export default function SeverityFilter({ maxLevel, onChange }: SeveritySliderPro
             <button
               key={level}
               onClick={() => onChange(level)}
-              className="flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl
+              className="flex min-w-0 flex-col items-center gap-1 rounded-xl px-1 py-2.5
                 transition-all duration-150 active:scale-95 border"
               style={{
                 background: isActive ? sev.color + "18" : "transparent",

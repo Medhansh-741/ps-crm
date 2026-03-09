@@ -1,138 +1,501 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
-import { AlertTriangle } from "lucide-react";
-import type { LatLngBounds } from "leaflet";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, ArrowUp, ChevronDown, LocateFixed, X } from "lucide-react";
 
-import TicketCard from "./_components/TicketCard";
-import TicketDetail from "./_components/TicketDetail";
-import SeveritySlider from "./_components/SeverityFilter";
 import { useNearbyTickets } from "./_components/useNearbyTickets";
-import type { MappedComplaint } from "./_components/useNearbyTickets";
+import { getSeverityConfig } from "./_components/useNearbyTickets";
+import type { MappedComplaint, SeverityLevel } from "./_components/useNearbyTickets";
+import { useGeolocation } from "./_components/useGeolocation";
+import { formatDistance } from "./_components/distance";
+import { calculateDistanceMeters } from "./_components/distance";
 
 const NearbyTicketsMap = dynamic(
   () => import("./_components/NearbyTicketsMap"),
   { ssr: false }
 );
 
+function formatStatus(status: string): string {
+  return status
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function statusClasses(status: string): string {
+  const normalized = status.trim().toLowerCase();
+  if (normalized === "submitted") return "bg-amber-100 text-amber-700";
+  if (normalized === "assigned") return "bg-blue-100 text-blue-700";
+  if (normalized === "in_progress" || normalized === "under_review") return "bg-purple-100 text-purple-700";
+  if (normalized === "resolved") return "bg-green-100 text-green-700";
+  if (normalized === "rejected") return "bg-red-100 text-red-700";
+  return "bg-gray-100 text-gray-600";
+}
+
+function formatReportedTime(timestamp: string): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+  if (diffInSeconds < 60) return "Just now";
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function uniqueSorted(items: Array<string | null | undefined>): string[] {
+  return Array.from(new Set(items.filter((v): v is string => Boolean(v && v.trim())))).sort();
+}
+
 export default function NearbyTicketsPage() {
   const {
-    allComplaints,
     visibleComplaints,
-    hasUpvoted,
     loading,
     error,
-    updateBounds,
+    updateRadius,
     handleUpvote,
   } = useNearbyTickets();
+  const {
+    location,
+    accuracyMeters,
+    lastUpdatedAt,
+    state: geolocationState,
+    error: geolocationError,
+    requestLocation,
+  } = useGeolocation();
 
-  const [selectedComplaint, setSelectedComplaint] = useState<MappedComplaint | null>(null);
+  const [selectedComplaintId, setSelectedComplaintId] = useState<string | null>(null);
   const [flyTarget, setFlyTarget] = useState<{ lat: number; lng: number } | null>(null);
-  const [maxSeverityLevel, setMaxSeverityLevel] = useState<number>(4);
+  const [radiusMeters, setRadiusMeters] = useState(1000);
+  const [departmentFilter, setDepartmentFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [severityFilter, setSeverityFilter] = useState<SeverityLevel | null>(null);
+
+  const [departmentDropdownOpen, setDepartmentDropdownOpen] = useState(false);
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+  const [severityDropdownOpen, setSeverityDropdownOpen] = useState(false);
+  const [nowTs, setNowTs] = useState<number>(Date.now());
+
+  const lastFilterCenterRef = useRef<{ lat: number; lng: number } | null>(null);
+  const lastFilterRadiusRef = useRef<number>(radiusMeters);
+
+  useEffect(() => {
+    if (!location) return;
+
+    const lastCenter = lastFilterCenterRef.current;
+    const lastRadius = lastFilterRadiusRef.current;
+    const radiusChanged = lastRadius !== radiusMeters;
+
+    const movedMeters = lastCenter
+      ? calculateDistanceMeters(lastCenter, location)
+      : Number.POSITIVE_INFINITY;
+
+    if (!radiusChanged && movedMeters < 10) return;
+
+    updateRadius(location, radiusMeters);
+    lastFilterCenterRef.current = location;
+    lastFilterRadiusRef.current = radiusMeters;
+  }, [location, radiusMeters, updateRadius]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNowTs(Date.now());
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const availableDepartments = useMemo(
+    () => uniqueSorted(visibleComplaints.map((c) => c.assigned_department).filter((d) => d !== "Unassigned")),
+    [visibleComplaints]
+  );
+
+  const availableStatuses = useMemo(
+    () => uniqueSorted(visibleComplaints.map((c) => c.status)),
+    [visibleComplaints]
+  );
+
+  const availableSeverities = useMemo(() => {
+    return Array.from(new Set(visibleComplaints.map((c) => (c.effective_severity || c.severity) as SeverityLevel)))
+      .sort((a, b) => getSeverityConfig(a).level - getSeverityConfig(b).level);
+  }, [visibleComplaints]);
+
+  const filteredComplaints = useMemo(() => {
+    const filtered = visibleComplaints.filter((complaint) => {
+      if (departmentFilter && complaint.assigned_department !== departmentFilter) return false;
+      if (statusFilter && complaint.status !== statusFilter) return false;
+      if (severityFilter && (complaint.effective_severity || complaint.severity) !== severityFilter) return false;
+      return true;
+    });
+
+    return filtered.sort((a, b) => {
+      const upvoteDiff = (b.upvote_count ?? 0) - (a.upvote_count ?? 0);
+      if (upvoteDiff !== 0) return upvoteDiff;
+
+      const severityDiff =
+        getSeverityConfig(b.effective_severity || b.severity).level -
+        getSeverityConfig(a.effective_severity || a.severity).level;
+      if (severityDiff !== 0) return severityDiff;
+
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [visibleComplaints, departmentFilter, statusFilter, severityFilter]);
+
+  const hasActiveFilters = Boolean(departmentFilter || statusFilter || severityFilter);
+
+  useEffect(() => {
+    if (departmentFilter && !availableDepartments.includes(departmentFilter)) {
+      setDepartmentFilter(null);
+    }
+  }, [departmentFilter, availableDepartments]);
+
+  useEffect(() => {
+    if (statusFilter && !availableStatuses.includes(statusFilter)) {
+      setStatusFilter(null);
+    }
+  }, [statusFilter, availableStatuses]);
+
+  useEffect(() => {
+    if (severityFilter && !availableSeverities.includes(severityFilter)) {
+      setSeverityFilter(null);
+    }
+  }, [severityFilter, availableSeverities]);
 
   function handleSelectComplaint(complaint: MappedComplaint) {
-    setSelectedComplaint(complaint);
+    setSelectedComplaintId(complaint.id);
     setFlyTarget({ lat: complaint.lat, lng: complaint.lng });
   }
 
-  function handleBoundsChange(bounds: LatLngBounds) {
-    updateBounds(bounds, maxSeverityLevel);
+  function closeAllDropdowns() {
+    setDepartmentDropdownOpen(false);
+    setStatusDropdownOpen(false);
+    setSeverityDropdownOpen(false);
   }
 
-  function handleSeverityChange(level: number) {
-    setMaxSeverityLevel(level);
-    // Re-filter with current bounds stored in the hook
-    updateBounds(
-      { contains: () => true } as any, // will be overridden by stored bounds in hook
-      level
-    );
+  function clearFilters() {
+    setDepartmentFilter(null);
+    setStatusFilter(null);
+    setSeverityFilter(null);
   }
 
-  const selectedId = selectedComplaint ? (selectedComplaint as MappedComplaint).id : null;
+  const locationReady = Boolean(location);
+  const locationBlockingMessage = geolocationState === "loading"
+    ? "Detecting your current location..."
+    : "Nearby tickets cannot be viewed without allowing location access.";
+  const secondsSinceLastLocation = lastUpdatedAt
+    ? Math.max(0, Math.floor((nowTs - lastUpdatedAt) / 1000))
+    : null;
+  const locationFreshnessText = lastUpdatedAt
+    ? `${secondsSinceLastLocation ?? 0}s ago`
+    : "-";
+  const gpsSignalStale = locationReady && secondsSinceLastLocation !== null && secondsSinceLastLocation > 15;
+  const lowAccuracy = typeof accuracyMeters === "number" && accuracyMeters > 50;
 
   return (
-    <div className="flex flex-col bg-gray-50 dark:bg-gray-950">
+    <div className="flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden bg-gray-50 dark:bg-gray-950">
+      {!locationReady ? (
+        <div className="flex flex-1 items-center justify-center p-4">
+          <section className="w-full max-w-xl rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+              <LocateFixed size={22} />
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Location Access Required</h2>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{locationBlockingMessage}</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              We use live GPS tracking to keep map pins and ticket list synced as you move.
+            </p>
+            {geolocationError && (
+              <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">{geolocationError}</p>
+            )}
+            <button
+              onClick={requestLocation}
+              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-violet-500"
+            >
+              <LocateFixed size={15} /> Allow Location Access
+            </button>
+          </section>
+        </div>
+      ) : (
+        <>
+          <div className="shrink-0 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+            <NearbyTicketsMap
+              complaints={filteredComplaints}
+              selectedId={selectedComplaintId}
+              flyTarget={flyTarget}
+              userLocation={location}
+              radiusMeters={radiusMeters}
+              onRadiusChange={setRadiusMeters}
+              onMarkerClick={handleSelectComplaint}
+            />
+          </div>
 
-      {/* Map */}
-      <NearbyTicketsMap
-        complaints={allComplaints}
-        selectedId={selectedId}
-        flyTarget={flyTarget}
-        maxSeverityLevel={maxSeverityLevel}
-        onBoundsChange={handleBoundsChange}
-        onMarkerClick={handleSelectComplaint}
-      />
-
-      {/* Severity slider — sits between map and list */}
-      <SeveritySlider
-        maxLevel={maxSeverityLevel}
-        onChange={handleSeverityChange}
-      />
-
-      {/* Ticket list / detail */}
-      <div className="flex-1 overflow-y-auto px-3 pt-4 pb-8">
-        {selectedComplaint ? (
-          <TicketDetail
-            complaint={selectedComplaint}
-            hasUpvoted={hasUpvoted}
-            onBack={() => setSelectedComplaint(null)}
-            onUpvote={handleUpvote}
-          />
-        ) : (
-          <>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="text-base font-bold text-gray-900 dark:text-white">
-                  Nearby Complaints
-                </h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {visibleComplaints.length} ticket{visibleComplaints.length !== 1 ? "s" : ""} in view
-                  {" · "}sorted by upvotes
-                </p>
-              </div>
+          <div className="flex-1 min-h-0 min-w-0 max-w-full overflow-hidden p-3">
+            <section className="flex h-full min-h-[280px] min-w-0 flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+          {(gpsSignalStale || lowAccuracy) && (
+            <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/50 dark:text-amber-200">
+              {gpsSignalStale ? "Searching for GPS signal... live updates are temporarily delayed." : ""}
+              {gpsSignalStale && lowAccuracy ? " " : ""}
+              {lowAccuracy ? `Low GPS accuracy detected (±${Math.round(accuracyMeters ?? 0)}m).` : ""}
+            </div>
+          )}
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-gray-200 bg-gray-50 px-4 py-3">
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setDepartmentDropdownOpen((v) => !v);
+                  setStatusDropdownOpen(false);
+                  setSeverityDropdownOpen(false);
+                }}
+                className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                Department: {departmentFilter ?? "All"}
+                <ChevronDown size={16} className={`transition-transform ${departmentDropdownOpen ? "rotate-180" : ""}`} />
+              </button>
+              {departmentDropdownOpen && (
+                <div className="absolute left-0 top-full z-20 mt-1 w-52 rounded-lg border border-gray-300 bg-white shadow-lg">
+                  <button
+                    onClick={() => {
+                      setDepartmentFilter(null);
+                      closeAllDropdowns();
+                    }}
+                    className={`w-full px-4 py-2 text-left text-sm transition-colors hover:bg-gray-100 ${
+                      departmentFilter === null ? "bg-purple-50 font-medium text-purple-700" : ""
+                    }`}
+                  >
+                    All Departments
+                  </button>
+                  {availableDepartments.map((department) => (
+                    <button
+                      key={department}
+                      onClick={() => {
+                        setDepartmentFilter(department);
+                        closeAllDropdowns();
+                      }}
+                      className={`w-full px-4 py-2 text-left text-sm transition-colors hover:bg-gray-100 ${
+                        departmentFilter === department ? "bg-purple-50 font-medium text-purple-700" : ""
+                      }`}
+                    >
+                      {department}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {error && (
-              <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 rounded-xl px-4 py-3 mb-3">
-                <AlertTriangle size={16} />
-                {error}
-              </div>
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setStatusDropdownOpen((v) => !v);
+                  setDepartmentDropdownOpen(false);
+                  setSeverityDropdownOpen(false);
+                }}
+                className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                Status: {statusFilter ? formatStatus(statusFilter) : "All"}
+                <ChevronDown size={16} className={`transition-transform ${statusDropdownOpen ? "rotate-180" : ""}`} />
+              </button>
+              {statusDropdownOpen && (
+                <div className="absolute left-0 top-full z-20 mt-1 w-48 rounded-lg border border-gray-300 bg-white shadow-lg">
+                  <button
+                    onClick={() => {
+                      setStatusFilter(null);
+                      closeAllDropdowns();
+                    }}
+                    className={`w-full px-4 py-2 text-left text-sm transition-colors hover:bg-gray-100 ${
+                      statusFilter === null ? "bg-purple-50 font-medium text-purple-700" : ""
+                    }`}
+                  >
+                    All Statuses
+                  </button>
+                  {availableStatuses.map((status) => (
+                    <button
+                      key={status}
+                      onClick={() => {
+                        setStatusFilter(status);
+                        closeAllDropdowns();
+                      }}
+                      className={`w-full px-4 py-2 text-left text-sm transition-colors hover:bg-gray-100 ${
+                        statusFilter === status ? "bg-purple-50 font-medium text-purple-700" : ""
+                      }`}
+                    >
+                      {formatStatus(status)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setSeverityDropdownOpen((v) => !v);
+                  setDepartmentDropdownOpen(false);
+                  setStatusDropdownOpen(false);
+                }}
+                className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                Severity: {severityFilter ? getSeverityConfig(severityFilter).label : "All"}
+                <ChevronDown size={16} className={`transition-transform ${severityDropdownOpen ? "rotate-180" : ""}`} />
+              </button>
+              {severityDropdownOpen && (
+                <div className="absolute left-0 top-full z-20 mt-1 w-40 rounded-lg border border-gray-300 bg-white shadow-lg">
+                  <button
+                    onClick={() => {
+                      setSeverityFilter(null);
+                      closeAllDropdowns();
+                    }}
+                    className={`w-full px-4 py-2 text-left text-sm transition-colors hover:bg-gray-100 ${
+                      severityFilter === null ? "bg-purple-50 font-medium text-purple-700" : ""
+                    }`}
+                  >
+                    All Levels
+                  </button>
+                  {availableSeverities.map((severity) => (
+                    <button
+                      key={severity}
+                      onClick={() => {
+                        setSeverityFilter(severity);
+                        closeAllDropdowns();
+                      }}
+                      className={`w-full px-4 py-2 text-left text-sm transition-colors hover:bg-gray-100 ${
+                        severityFilter === severity ? "bg-purple-50 font-medium text-purple-700" : ""
+                      }`}
+                    >
+                      {getSeverityConfig(severity).label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+              >
+                <X size={16} />
+                Clear Filters
+              </button>
             )}
 
-            {loading ? (
-              <div className="flex flex-col gap-2">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-20 rounded-xl bg-white dark:bg-white/5 animate-pulse" />
-                ))}
+            <div className="ml-auto text-xs text-gray-500">
+              {filteredComplaints.length} ticket{filteredComplaints.length !== 1 ? "s" : ""} in view
+              {" · "}{formatDistance(radiusMeters)} radius
+              {accuracyMeters ? ` · ±${Math.round(accuracyMeters)}m GPS` : ""}
+              {` · update ${locationFreshnessText}`}
+            </div>
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="flex min-h-0 min-w-[940px] flex-col">
+              <div className="sticky top-0 z-10 grid grid-cols-[150px_2.2fr_1.2fr_1fr_1fr_100px_120px] gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <span>Ticket ID</span>
+                <span>Issue Title</span>
+                <span>Department</span>
+                <span>Status</span>
+                <span>Reported Time</span>
+                <span className="text-right">Upvotes</span>
+                <span>Severity</span>
               </div>
-            ) : visibleComplaints.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <AlertTriangle size={36} className="text-gray-300 dark:text-gray-700 mb-3" />
-                <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">
-                  No tickets in this area
-                </p>
-                <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">
-                  Try zooming out or panning the map
-                </p>
+
+              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+                {loading && (
+                  <div className="px-4 py-8 text-sm text-gray-500">Loading nearby tickets...</div>
+                )}
+
+                {!loading && error && (
+                  <div className="flex items-center gap-2 px-4 py-8 text-sm text-red-600">
+                    <AlertTriangle size={16} />
+                    {error}
+                  </div>
+                )}
+
+                {!loading && !error && visibleComplaints.length === 0 && (
+                  <div className="px-4 py-8 text-sm text-gray-500">
+                    No tickets found within {formatDistance(radiusMeters)} of your current location.
+                  </div>
+                )}
+
+                {!loading && !error && visibleComplaints.length > 0 && filteredComplaints.length === 0 && (
+                  <div className="px-4 py-8 text-sm text-gray-500">No tickets match your selected filters.</div>
+                )}
+
+                {!loading && !error && filteredComplaints.length > 0 && (
+                  <ul className="divide-y divide-gray-100">
+                    {filteredComplaints.map((complaint) => {
+                      const severity = getSeverityConfig(complaint.effective_severity || complaint.severity);
+                      const isSelected = selectedComplaintId === complaint.id;
+
+                      return (
+                        <li
+                          key={complaint.id}
+                          onClick={() => handleSelectComplaint(complaint)}
+                          className={`grid cursor-pointer grid-cols-[150px_2.2fr_1.2fr_1fr_1fr_100px_120px] gap-3 px-4 py-4 text-sm transition-colors ${
+                            isSelected ? "bg-blue-50" : "text-gray-700 hover:bg-gray-50"
+                          }`}
+                        >
+                          <span className="truncate font-mono text-xs font-medium text-gray-900 sm:text-sm">
+                            {complaint.ticket_id || complaint.id.slice(0, 8).toUpperCase()}
+                          </span>
+
+                          <span className="line-clamp-2 font-medium leading-snug text-gray-900">
+                            {complaint.title || "Untitled issue"}
+                          </span>
+
+                          <span className="line-clamp-2 leading-snug text-gray-700">
+                            {complaint.assigned_department || "Unassigned"}
+                          </span>
+
+                          <span>
+                            <span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${statusClasses(complaint.status || "")}`}>
+                              {formatStatus(complaint.status || "submitted")}
+                            </span>
+                          </span>
+
+                          <span className="text-xs text-gray-500 sm:text-sm">
+                            {formatReportedTime(complaint.created_at)}
+                          </span>
+
+                          <span className="inline-flex items-center justify-end gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleUpvote(complaint.id);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                            >
+                              <ArrowUp size={14} className="text-gray-400" />
+                              {complaint.upvote_count ?? 0}
+                            </button>
+                          </span>
+
+                          <span>
+                            <span
+                              className="inline-flex rounded-md px-2 py-1 text-xs font-semibold uppercase"
+                              style={{ background: `${severity.color}22`, color: severity.color }}
+                            >
+                              {severity.label}
+                            </span>
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {visibleComplaints.map((complaint) => (
-                  <TicketCard
-                    key={complaint.id}
-                    complaint={complaint}
-                    isSelected={selectedId !== null && selectedId === complaint.id}
-                    hasUpvoted={hasUpvoted}
-                    onClick={() => handleSelectComplaint(complaint)}
-                    onUpvote={handleUpvote}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        )}
+            </div>
+          </div>
+        </section>
       </div>
+        </>
+      )}
     </div>
   );
 }

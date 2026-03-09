@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/src/lib/supabase";
 import type { Tables } from "@/src/types/database.types";
+import { calculateDistanceMeters, type GeoPoint } from "./distance";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -10,6 +11,7 @@ export type SeverityLevel = "L1" | "L2" | "L3" | "L4";
 
 export type MappedComplaint = {
   id: string;
+  ticket_id: string | null;
   title: string;
   description: string;
   severity: SeverityLevel;
@@ -23,6 +25,7 @@ export type MappedComplaint = {
   address_text: string | null;
   ward_name: string | null;
   category_id: number;
+  assigned_department: string | null;
 };
 
 export const SEVERITY_CONFIG: Record<SeverityLevel, { label: string; color: string; level: number }> = {
@@ -89,20 +92,15 @@ function parseLocation(location: unknown): { lat: number; lng: number } | null {
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-type Bounds = { contains: (latlng: [number, number]) => boolean };
-
 function applyFilter(
   complaints: MappedComplaint[],
-  bounds: Bounds | null,
-  maxLevel: number
+  center: GeoPoint | null,
+  radiusMeters: number
 ): MappedComplaint[] {
-  if (!bounds || complaints.length === 0) return [];
+  if (!center || complaints.length === 0) return [];
+
   return complaints
-    .filter((c) => {
-      const inBounds = bounds.contains([c.lat, c.lng]);
-      const sevLevel = getSeverityConfig(c.effective_severity || c.severity).level;
-      return inBounds && sevLevel <= maxLevel;
-    })
+    .filter((c) => calculateDistanceMeters(center, { lat: c.lat, lng: c.lng }) <= radiusMeters)
     .sort((a, b) => b.upvote_count - a.upvote_count);
 }
 
@@ -113,23 +111,41 @@ export function useNearbyTickets() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const lastBoundsRef = useRef<Bounds | null>(null);
-  const lastMaxLevelRef = useRef<number>(4);
+  const lastCenterRef = useRef<GeoPoint | null>(null);
+  const lastRadiusRef = useRef<number>(1000);
 
   async function fetchComplaints() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("complaints")
-      .select(
-        "id,title,description,severity,effective_severity,location,photo_urls,upvote_count,status,created_at,address_text,ward_name,category_id"
-      )
-      .order("upvote_count", { ascending: false });
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-    if (error || !data) {
-      setError(error?.message ?? "Failed to load complaints");
-      setLoading(false);
-      return;
-    }
+      const token = session?.access_token ?? null;
+      if (sessionError || !token) {
+        setError("Please sign in to view nearby tickets");
+        setLoading(false);
+        return;
+      }
+
+      const res = await fetch("/api/citizen/nearby", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      const payload = (await res.json()) as { error?: string; items?: Tables<"complaints">[] };
+
+      if (!res.ok || !Array.isArray(payload.items)) {
+        setError(payload.error ?? "Failed to load complaints");
+        setLoading(false);
+        return;
+      }
+
+    const data = payload.items;
 
     type Row = Tables<"complaints">;
     const mapped: MappedComplaint[] = (data as Row[])
@@ -138,6 +154,7 @@ export function useNearbyTickets() {
         if (!pos) return null;
         return {
           id: c.id,
+          ticket_id: c.ticket_id,
           title: c.title,
           description: c.description,
           severity: c.severity as SeverityLevel,
@@ -151,26 +168,32 @@ export function useNearbyTickets() {
           address_text: c.address_text,
           ward_name: c.ward_name,
           category_id: c.category_id,
+          assigned_department: c.assigned_department,
         };
       })
       .filter(Boolean) as MappedComplaint[];
 
-    setAllComplaints(mapped);
-    // Re-apply filter now that data is loaded
-    setVisibleComplaints(applyFilter(mapped, lastBoundsRef.current, lastMaxLevelRef.current));
-    setError(null);
-    setLoading(false);
+      setAllComplaints(mapped);
+      // Re-apply filter now that data is loaded
+      setVisibleComplaints(applyFilter(mapped, lastCenterRef.current, lastRadiusRef.current));
+      setError(null);
+      setLoading(false);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Unknown error occurred";
+      setError(errorMsg || "Failed to load complaints");
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
     fetchComplaints();
   }, []);
 
-  const updateBounds = useCallback(
-    (bounds: Bounds, maxSeverityLevel: number) => {
-      lastBoundsRef.current = bounds;
-      lastMaxLevelRef.current = maxSeverityLevel;
-      setVisibleComplaints(applyFilter(allComplaints, bounds, maxSeverityLevel));
+  const updateRadius = useCallback(
+    (center: GeoPoint, radiusMeters: number) => {
+      lastCenterRef.current = center;
+      lastRadiusRef.current = radiusMeters;
+      setVisibleComplaints(applyFilter(allComplaints, center, radiusMeters));
     },
     [allComplaints]
   );
@@ -193,7 +216,7 @@ export function useNearbyTickets() {
     hasUpvoted,
     loading,
     error,
-    updateBounds,
+    updateRadius,
     handleUpvote,
   };
 }

@@ -1,40 +1,59 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
-import { ChevronUp, ChevronDown, Flame, MapPin } from "lucide-react";
+import { Circle, CircleMarker, MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
+import { ChevronDown, ChevronUp, Flame, LocateFixed } from "lucide-react";
+
 import type { MappedComplaint } from "./useNearbyTickets";
 import { getSeverityConfig } from "./useNearbyTickets";
-import type { LatLngBounds } from "leaflet";
-
-// ─── Viewport tracker ─────────────────────────────────────────────────────────
-
-function MapViewportTracker({
-  onBoundsChange,
-}: {
-  onBoundsChange: (bounds: LatLngBounds) => void;
-}) {
-  const map = useMapEvents({
-    moveend: () => onBoundsChange(map.getBounds()),
-    zoomend: () => onBoundsChange(map.getBounds()),
-  });
-  useEffect(() => {
-    onBoundsChange(map.getBounds());
-  }, []);
-  return null;
-}
-
-// ─── Fly to target ────────────────────────────────────────────────────────────
+import { calculateDistanceMeters, formatDistance, type GeoPoint } from "./distance";
 
 function FlyToTarget({ target }: { target: { lat: number; lng: number } | null }) {
   const map = useMap();
+
   useEffect(() => {
-    if (target) map.flyTo([target.lat, target.lng], 15, { duration: 0.8 });
-  }, [target]);
+    if (target) {
+      map.flyTo([target.lat, target.lng], 18, { duration: 0.8 });
+    }
+  }, [map, target]);
+
   return null;
 }
 
-// ─── Heatmap layer ────────────────────────────────────────────────────────────
+function LiveFollow({
+  userLocation,
+  recenterSignal,
+}: {
+  userLocation: GeoPoint | null;
+  recenterSignal: number;
+}) {
+  const map = useMap();
+  const prevLocationRef = useRef<GeoPoint | null>(null);
+  const prevRecenterRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!userLocation) return;
+
+    const forceRecenter = recenterSignal !== prevRecenterRef.current;
+    const prev = prevLocationRef.current;
+    const movedMeters = prev ? calculateDistanceMeters(prev, userLocation) : Number.POSITIVE_INFINITY;
+
+    if (!forceRecenter && movedMeters < 10) {
+      return;
+    }
+
+    if (forceRecenter || !prev) {
+      map.flyTo([userLocation.lat, userLocation.lng], Math.max(map.getZoom(), 15), { duration: 0.8 });
+    } else {
+      map.panTo([userLocation.lat, userLocation.lng], { animate: true, duration: 0.8 });
+    }
+
+    prevLocationRef.current = userLocation;
+    prevRecenterRef.current = recenterSignal;
+  }, [map, recenterSignal, userLocation]);
+
+  return null;
+}
 
 function HeatmapLayer({ complaints }: { complaints: MappedComplaint[] }) {
   const map = useMap();
@@ -50,20 +69,21 @@ function HeatmapLayer({ complaints }: { complaints: MappedComplaint[] }) {
 
     function getIntensity(sev: string) {
       switch (sev) {
-        case "L4": return 1.0;
-        case "L3": return 0.75;
-        case "L2": return 0.5;
-        case "L1": return 0.25;
-        default:   return 0.3;
+        case "L4":
+          return 1.0;
+        case "L3":
+          return 0.75;
+        case "L2":
+          return 0.5;
+        case "L1":
+          return 0.25;
+        default:
+          return 0.3;
       }
     }
 
     const heatLayer = (L as any).heatLayer(
-      complaints.map((c) => [
-        c.lat,
-        c.lng,
-        getIntensity(c.effective_severity || c.severity),
-      ]),
+      complaints.map((c) => [c.lat, c.lng, getIntensity(c.effective_severity || c.severity)]),
       {
         radius: 25,
         blur: 20,
@@ -78,26 +98,19 @@ function HeatmapLayer({ complaints }: { complaints: MappedComplaint[] }) {
     );
 
     heatLayer.addTo(map);
-    return () => { map.removeLayer(heatLayer); };
+    return () => {
+      map.removeLayer(heatLayer);
+    };
   }, [complaints, map]);
 
   return null;
 }
 
-// ─── Photo + hover pin ────────────────────────────────────────────────────────
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function makeMarkerIcon(complaint: MappedComplaint, L: any, isSelected: boolean) {
+function makeMarkerIcon(complaint: MappedComplaint, L: any, isSelected: boolean, distanceLabel: string) {
   const sev = getSeverityConfig(complaint.effective_severity || complaint.severity);
   const photo = complaint.photo_urls?.[0];
   const size = isSelected ? 52 : 42;
-  const ringStyle = isSelected
-    ? `box-shadow:0 0 0 3px ${sev.color},0 0 16px ${sev.color}88;`
-    : `box-shadow:0 0 0 2.5px ${sev.color};`;
-
-  const label = complaint.title.length > 28
-    ? complaint.title.slice(0, 28) + "…"
-    : complaint.title;
 
   const photoHtml = photo
     ? `<img src="${photo}"
@@ -113,7 +126,7 @@ function makeMarkerIcon(complaint: MappedComplaint, L: any, isSelected: boolean)
       <div class="complaint-pin-wrapper" style="position:relative;display:inline-block;">
         <div style="
           width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;
-          ${ringStyle};transition:all 0.2s;cursor:pointer;
+          transition:all 0.2s;cursor:pointer;
         ">${photoHtml}</div>
         <div class="pin-tooltip" style="
           position:absolute;
@@ -123,8 +136,9 @@ function makeMarkerIcon(complaint: MappedComplaint, L: any, isSelected: boolean)
           background:rgba(0,0,0,0.82);
           color:#fff;
           font-size:11px;
-          font-weight:600;
-          padding:4px 8px;
+          font-weight:700;
+          line-height:1;
+          padding:6px 8px;
           border-radius:6px;
           white-space:nowrap;
           pointer-events:none;
@@ -132,44 +146,50 @@ function makeMarkerIcon(complaint: MappedComplaint, L: any, isSelected: boolean)
           transition:opacity 0.15s;
           z-index:9999;
           border-left:3px solid ${sev.color};
-        ">${label}</div>
+        ">${distanceLabel}</div>
       </div>`,
     className: "",
-    iconSize: [size + 160, size],
+    iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
 }
-
-// ─── Props ────────────────────────────────────────────────────────────────────
 
 interface NearbyTicketsMapProps {
   complaints: MappedComplaint[];
   selectedId: string | null;
   flyTarget: { lat: number; lng: number } | null;
-  maxSeverityLevel: number;
-  onBoundsChange: (bounds: LatLngBounds) => void;
+  userLocation: GeoPoint | null;
+  radiusMeters: number;
+  onRadiusChange: (radiusMeters: number) => void;
   onMarkerClick: (complaint: MappedComplaint) => void;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function computeExpandedMapHeight(viewportHeight: number): number {
+  if (viewportHeight <= 800) {
+    return clamp(Math.round(viewportHeight * 0.36), 240, 360);
+  }
+  return clamp(Math.round(viewportHeight * 0.42), 280, 460);
+}
 
 export default function NearbyTicketsMap({
   complaints,
   selectedId,
   flyTarget,
-  maxSeverityLevel,
-  onBoundsChange,
+  userLocation,
+  radiusMeters,
+  onRadiusChange,
   onMarkerClick,
 }: NearbyTicketsMapProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [L, setL] = useState<any>(null);
-  const [mapHeight, setMapHeight] = useState(320);
+  const [expandedMapHeight, setExpandedMapHeight] = useState(360);
   const [collapsed, setCollapsed] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
-
-  const isDragging = useRef(false);
-  const dragStartY = useRef(0);
-  const dragStartH = useRef(0);
+  const [recenterSignal, setRecenterSignal] = useState(0);
 
   useEffect(() => {
     import("leaflet").then((leaflet) => {
@@ -183,115 +203,123 @@ export default function NearbyTicketsMap({
     });
 
     const style = document.createElement("style");
-    style.innerHTML = `.complaint-pin-wrapper:hover .pin-tooltip { opacity: 1 !important; }`;
+    style.innerHTML = ".complaint-pin-wrapper:hover .pin-tooltip { opacity: 1 !important; }";
     document.head.appendChild(style);
+
+    const applyExpandedHeight = () => {
+      setExpandedMapHeight(computeExpandedMapHeight(window.innerHeight));
+    };
+
+    applyExpandedHeight();
+    window.addEventListener("resize", applyExpandedHeight);
+
+    return () => {
+      document.head.removeChild(style);
+      window.removeEventListener("resize", applyExpandedHeight);
+    };
   }, []);
 
-  function onDragStart(e: React.MouseEvent | React.TouchEvent) {
-    isDragging.current = true;
-    dragStartY.current = "touches" in e ? e.touches[0].clientY : e.clientY;
-    dragStartH.current = mapHeight;
-    const onMove = (ev: MouseEvent | TouchEvent) => {
-      if (!isDragging.current) return;
-      const y = "touches" in ev
-        ? (ev as TouchEvent).touches[0].clientY
-        : (ev as MouseEvent).clientY;
-      setMapHeight(Math.max(160, Math.min(600, dragStartH.current + (y - dragStartY.current))));
-    };
-    const onUp = () => {
-      isDragging.current = false;
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-      window.removeEventListener("touchmove", onMove as EventListener);
-      window.removeEventListener("touchend", onUp);
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    window.addEventListener("touchmove", onMove as EventListener, { passive: true });
-    window.addEventListener("touchend", onUp);
+  function handleRecenter() {
+    setRecenterSignal((prev) => prev + 1);
   }
-
-  const pinsToShow = complaints.filter((c) => {
-    const level = getSeverityConfig(c.effective_severity || c.severity).level;
-    return level <= maxSeverityLevel;
-  });
 
   return (
     <>
-      {/* Map */}
-      <div
-        className="relative transition-all duration-300 overflow-hidden"
-        style={{ height: collapsed ? 0 : mapHeight }}
-      >
+      <div className="relative overflow-hidden transition-all duration-300" style={{ height: collapsed ? 0 : expandedMapHeight }}>
         {!collapsed && L && (
-          <MapContainer
-            center={[28.6139, 77.209]}
-            zoom={12}
-            style={{ height: "100%", width: "100%" }}
-            zoomControl={false}
-          >
-            <TileLayer
-              attribution="© OpenStreetMap contributors"
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <MapViewportTracker onBoundsChange={onBoundsChange} />
+          <MapContainer center={[28.6139, 77.209]} zoom={12} style={{ height: "100%", width: "100%" }} zoomControl={false}>
+            <TileLayer attribution="© OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             <FlyToTarget target={flyTarget} />
+            <LiveFollow userLocation={userLocation} recenterSignal={recenterSignal} />
 
-            {/* Heatmap layer */}
-            {showHeatmap && <HeatmapLayer complaints={pinsToShow} />}
-
-            {/* Marker pins — always shown on top of heatmap */}
-            {pinsToShow.map((c) => (
-              <Marker
-                key={c.id}
-                position={[c.lat, c.lng]}
-                icon={makeMarkerIcon(c, L, selectedId === c.id)}
-                eventHandlers={{ click: () => onMarkerClick(c) }}
+            {userLocation && (
+              <Circle
+                center={[userLocation.lat, userLocation.lng]}
+                radius={radiusMeters}
+                pathOptions={{ color: "#7c3aed", fillColor: "#7c3aed", fillOpacity: 0.12, weight: 2 }}
               />
-            ))}
+            )}
+
+            {showHeatmap && <HeatmapLayer complaints={complaints} />}
+
+            {complaints.map((complaint) => {
+              const distanceLabel = userLocation
+                ? formatDistance(calculateDistanceMeters(userLocation, { lat: complaint.lat, lng: complaint.lng }))
+                : "-";
+
+              return (
+                <Marker
+                  key={complaint.id}
+                  position={[complaint.lat, complaint.lng]}
+                  icon={makeMarkerIcon(complaint, L, selectedId === complaint.id, distanceLabel)}
+                  eventHandlers={{ click: () => onMarkerClick(complaint) }}
+                />
+              );
+            })}
           </MapContainer>
         )}
 
-        {/* Map controls overlay */}
         {!collapsed && (
-          <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-2">
-            {/* Heatmap toggle */}
+          <>
+            {/* Top left: Heatmap button */}
             <button
               onClick={() => setShowHeatmap((v) => !v)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                shadow-lg border transition-all
-                ${showHeatmap
-                  ? "bg-orange-500 text-white border-orange-600"
-                  : "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
-                }`}
+              className={`absolute left-3 top-3 z-[1000] flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-lg transition-all ${
+                showHeatmap
+                  ? "border-orange-600 bg-orange-500 text-white"
+                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+              }`}
+              title="Toggle heatmap overlay"
             >
               <Flame size={12} />
               {showHeatmap ? "Heatmap On" : "Heatmap"}
             </button>
-          </div>
+
+            {/* Bottom left: Radius slider */}
+            <div className="absolute bottom-3 left-3 z-[1000] rounded-lg border border-gray-200 bg-white/95 px-2 py-1.5 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-900/95">
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Radius</div>
+              <input
+                type="range"
+                min={500}
+                max={2000}
+                step={500}
+                value={radiusMeters}
+                onChange={(e) => onRadiusChange(Number(e.target.value))}
+                className="h-1.5 w-28 cursor-pointer accent-violet-600"
+                aria-label="Nearby ticket radius"
+              />
+              <div className="mt-1 text-center text-[11px] font-semibold text-violet-700 dark:text-violet-300">
+                {formatDistance(radiusMeters)}
+              </div>
+            </div>
+
+            {/* Bottom right: Recenter button */}
+            <button
+              onClick={handleRecenter}
+              className="absolute bottom-3 right-3 z-[1000] inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-lg transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+              title="Center on my current location"
+              aria-label="Center on my current location"
+            >
+              <LocateFixed size={16} />
+            </button>
+          </>
         )}
       </div>
 
-      {/* Drag / collapse handle */}
-      <div
-        className="relative flex items-center justify-center h-7 select-none shrink-0
-          bg-gray-100 dark:bg-gray-900 border-y border-gray-200 dark:border-gray-800
-          group cursor-row-resize"
-        onMouseDown={onDragStart}
-        onTouchStart={onDragStart}
-      >
-        <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-700
-          group-hover:bg-gray-400 dark:group-hover:bg-gray-500 transition-colors" />
+      <div className="group relative flex h-7 shrink-0 select-none items-center justify-center border-y border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-gray-900">
         <button
           onClick={() => setCollapsed((v) => !v)}
-          onMouseDown={(e) => e.stopPropagation()}
-          className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1
-            text-[10px] font-semibold text-gray-400
-            hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+          className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1 text-[10px] font-semibold text-gray-400 transition-colors hover:text-gray-700 dark:hover:text-gray-200"
         >
-          {collapsed
-            ? <><ChevronDown size={13} /> Map</>
-            : <><ChevronUp size={13} /> Hide</>}
+          {collapsed ? (
+            <>
+              <ChevronDown size={13} /> Map
+            </>
+          ) : (
+            <>
+              <ChevronUp size={13} /> Hide
+            </>
+          )}
         </button>
       </div>
     </>
