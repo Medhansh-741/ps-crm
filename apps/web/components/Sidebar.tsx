@@ -191,7 +191,7 @@ const Sidebar: React.FC<SidebarConfig> = ({
       {/* Mobile Overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-gray-900/50 dark:bg-black/60 z-40 lg:hidden transition-opacity"
+          className="fixed inset-0 bg-gray-900/50 dark:bg-black/60 z-[3000] lg:hidden transition-opacity"
           onClick={onClose}
         />
       )}
@@ -200,7 +200,7 @@ const Sidebar: React.FC<SidebarConfig> = ({
       <aside
         ref={sidebarRef}
         className={`
-          fixed lg:relative top-0 left-0 z-[1002] min-h-screen flex flex-col py-8 overflow-x-visible font-sans transition-all duration-300 ease-in-out
+          fixed lg:relative top-0 left-0 z-[3001] min-h-screen flex flex-col py-8 overflow-x-visible font-sans transition-all duration-300 ease-in-out
           ${colors.background} ${colors.border} lg:border-r lg:relative lg:translate-x-0
           ${isOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}
           ${isCollapsed ? "w-20" : "w-64"}
@@ -209,7 +209,7 @@ const Sidebar: React.FC<SidebarConfig> = ({
         {/* Desktop Collapse Toggle */}
         <button
           onClick={onToggleCollapse}
-          className={`absolute -right-3 top-10 z-[1002] hidden lg:flex h-6 w-6 items-center justify-center rounded-full border text-gray-500 shadow-md hover:text-gray-900 dark:border-gray-700 dark:text-gray-400 dark:hover:text-white transition-all duration-200 focus:ring-2 focus:ring-offset-2 focus:ring-[#b4725a] dark:focus:ring-purple-500 focus:outline-none ${colors.toggleButtonBg}`}
+          className={`absolute -right-3 top-10 z-[3002] hidden lg:flex h-6 w-6 items-center justify-center rounded-full border text-gray-500 shadow-md hover:text-gray-900 dark:border-gray-700 dark:text-gray-400 dark:hover:text-white transition-all duration-200 focus:ring-2 focus:ring-offset-2 focus:ring-[#b4725a] dark:focus:ring-purple-500 focus:outline-none ${colors.toggleButtonBg}`}
         >
           {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
