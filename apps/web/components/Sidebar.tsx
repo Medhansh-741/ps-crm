@@ -68,18 +68,18 @@ export const SIDEBAR_LIGHT_COLORS: SidebarThemeColors = {
 };
 
 export const SIDEBAR_DARK_COLORS: SidebarThemeColors = {
-  background: "dark:bg-gray-950",
-  border: "dark:border-gray-800",
+  background: "dark:bg-[#111111]",
+  border: "dark:border-[#2a2a2a]",
   textMain: "dark:text-white",
-  textMuted: "dark:text-gray-500",
-  textHover: "dark:hover:text-gray-200",
-  bgHover: "dark:hover:bg-gray-900",
-  activeText: "dark:text-purple-400",
-  activeBg: "dark:bg-purple-900/20",
-  activeIndicator: "dark:bg-purple-500",
-  badgeBg: "dark:bg-purple-500",
+  textMuted: "dark:text-gray-400",
+  textHover: "dark:hover:text-white",
+  bgHover: "dark:hover:bg-[#2a2a2a]",
+  activeText: "dark:text-[#C9A84C]",
+  activeBg: "dark:bg-[#C9A84C]/10",
+  activeIndicator: "dark:bg-[#C9A84C]",
+  badgeBg: "dark:bg-[#C9A84C]/20",
   badgeText: "dark:text-white",
-  toggleButtonBg: "dark:bg-gray-800",
+  toggleButtonBg: "dark:bg-[#1e1e1e]",
 };
 
 // 1. The Exported Interface for Maximum Customizability
