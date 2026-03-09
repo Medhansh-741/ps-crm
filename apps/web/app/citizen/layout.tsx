@@ -50,13 +50,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const bootstrapCitizen = async () => {
-      const { data: userData, error } = await supabase.auth.getUser();
-      if (error || !userData.user?.id) {
+      // getSession() reads the cached session from localStorage — no network
+      // request and no race condition with OAuth hash/code tokens.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
         setCitizenId(null);
         setNotificationLoading(false);
         return;
       }
-      setCitizenId(userData.user.id);
+      setCitizenId(session.user.id);
     };
 
     void bootstrapCitizen();
