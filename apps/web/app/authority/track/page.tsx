@@ -6,18 +6,21 @@ import { supabase } from "../../../src/lib/supabase";
 
 type Complaint = {
   id: string;
+  ticket_id: string;
   title: string;
   severity: string;
   status: string;
+  created_at: string;
 };
 
 export default function AuthorityDashboardPage() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [search, setSearch] = useState("");
   const [selectedComplaintId, setSelectedComplaintId] = useState<string | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
-const [sortBy, setSortBy] = useState("latest");
-const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("latest");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [isSortOpen, setIsSortOpen] = useState(false);
+  const [isStatusOpen, setIsStatusOpen] = useState(false);
   useEffect(() => {
     fetchComplaints();
   }, []);
@@ -25,7 +28,7 @@ const [statusFilter, setStatusFilter] = useState("all");
   async function fetchComplaints() {
     const { data, error } = await supabase
       .from("complaints")
-      .select("id, title, severity, status");
+      .select("id, ticket_id, title, severity, status, created_at");
 
     if (error) {
       console.error(error);
@@ -34,26 +37,28 @@ const [statusFilter, setStatusFilter] = useState("all");
 
     setComplaints(data || []);
   }
-let filteredComplaints = complaints.filter((c) =>
-  c.title.toLowerCase().includes(search.toLowerCase()) ||
-  c.id.toLowerCase().includes(search.toLowerCase())
-);
-
-// STATUS FILTER
-if (statusFilter !== "all") {
-  filteredComplaints = filteredComplaints.filter(
-    (c) => c.status.toLowerCase() === statusFilter
+  let filteredComplaints = complaints.filter((c) =>
+    c.title.toLowerCase().includes(search.toLowerCase()) ||
+    c.id.toLowerCase().includes(search.toLowerCase())
   );
-}
 
-// SORT
-filteredComplaints = filteredComplaints.sort((a, b) => {
-  if (sortBy === "latest") {
-    return b.id.localeCompare(a.id);
-  } else {
-    return a.id.localeCompare(b.id);
+  // STATUS FILTER
+  if (statusFilter !== "all") {
+    filteredComplaints = filteredComplaints.filter(
+      (c) => c.status.toLowerCase() === statusFilter
+    );
   }
-});
+
+  // SORT
+  filteredComplaints = filteredComplaints.sort((a, b) => {
+    const dateA = new Date(a.created_at || 0).getTime();
+    const dateB = new Date(b.created_at || 0).getTime();
+    if (sortBy === "latest") {
+      return dateB - dateA;
+    } else {
+      return dateA - dateB;
+    }
+  });
   return (
     <div className="max-w-[1500px] mx-auto px-6 py-6 space-y-8">
 
@@ -73,11 +78,11 @@ filteredComplaints = filteredComplaints.sort((a, b) => {
         <div className="flex items-center gap-4">
 
           <input
-  placeholder="Search complaints..."
-  value={search}
-  onChange={(e) => setSearch(e.target.value)}
-  className="px-3 py-2 rounded-md text-black text-sm"
-/>
+            placeholder="Search complaints..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="px-3 py-2 rounded-md text-black text-sm"
+          />
 
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
@@ -127,7 +132,7 @@ filteredComplaints = filteredComplaints.sort((a, b) => {
         </div>
 
         <div className="h-[450px]">
-         <MapComponent selectedComplaintId={selectedComplaintId} />
+          <MapComponent selectedComplaintId={selectedComplaintId} />
         </div>
 
       </div>
@@ -136,103 +141,88 @@ filteredComplaints = filteredComplaints.sort((a, b) => {
       <div className="bg-[#eef3f4] rounded-xl shadow-lg p-6">
 
         {/* HEADER */}
-        <div className="flex justify-between items-center mb-4">
+        <div className="mb-6 flex flex-col gap-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold">
+              Complaints Overview
+            </h2>
+            <button className="px-3 py-2 bg-gray-800 text-white rounded-md text-sm">
+              Export
+            </button>
+          </div>
 
-          <h2 className="text-lg font-semibold">
-            Complaints Overview
-          </h2>
+          <div className="flex flex-col gap-3">
+            <input
+              type="text"
+              placeholder="Search by ticket id, title, or address..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full border border-gray-300 rounded-md px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
 
-          <div className="flex gap-3 relative">
+            <div className="flex gap-3">
+              {/* Sort Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => { setIsSortOpen(!isSortOpen); setIsStatusOpen(false); }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white hover:bg-gray-50 flex items-center gap-2 focus:outline-none shadow-sm transition-colors"
+                >
+                  Sort: {sortBy === "latest" ? "Latest" : "Oldest"}
+                  <span className="text-xs">▼</span>
+                </button>
+                {/* Dropdown Menu */}
+                <div
+                  className={`absolute left-0 mt-2 w-32 bg-white border border-gray-200 rounded-lg shadow-lg z-50 transition-all duration-200 origin-top flex flex-col overflow-hidden ${isSortOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-2 pointer-events-none'}`}
+                >
+                  <button
+                    onClick={() => { setSortBy("latest"); setIsSortOpen(false); }}
+                    className={`text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors ${sortBy === "latest" ? "bg-gray-50 font-medium text-blue-600" : ""}`}
+                  >
+                    Latest
+                  </button>
+                  <button
+                    onClick={() => { setSortBy("oldest"); setIsSortOpen(false); }}
+                    className={`text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors ${sortBy === "oldest" ? "bg-gray-50 font-medium text-blue-600" : ""}`}
+                  >
+                    Oldest
+                  </button>
+                </div>
+              </div>
 
-            <input type="text"
-            placeholder="Search"
-            value={search}
-           onChange={(e) => setSearch(e.target.value)}
-           className="border rounded-md px-3 py-2 text-sm"
-         />     
-         <button
-    onClick={() => setShowFilters(!showFilters)}
-    className="px-3 py-2 border rounded-md text-sm hover:bg-gray-100"
-  >
-    Filter
-  </button>
-
-  {/* FILTER DROPDOWN */}
-  {showFilters && (
-    <div className="absolute top-12 right-16 bg-white border rounded-lg shadow-lg flex overflow-hidden z-50">
-
-      {/* SORT */}
-      <div className="w-40 border-r">
-        <div className="px-4 py-2 text-purple-600 font-semibold border-b">
-          Sort
-        </div>
-
-        <button
-          onClick={() => {
-            setSortBy("latest");
-            setShowFilters(false);
-          }}
-          className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-        >
-          Latest
-        </button>
-
-        <button
-          onClick={() => {
-            setSortBy("oldest");
-            setShowFilters(false);
-          }}
-          className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-        >
-          Oldest
-        </button>
-      </div>
-
-      {/* STATUS */}
-      <div className="w-40">
-        <div className="px-4 py-2 text-purple-600 font-semibold border-b">
-          Status
-        </div>
-
-        <button
-          onClick={() => {
-            setStatusFilter("all");
-            setShowFilters(false);
-          }}
-          className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-        >
-          All Statuses
-        </button>
-
-        <button
-          onClick={() => {
-            setStatusFilter("submitted");
-            setShowFilters(false);
-          }}
-          className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-        >
-          Submitted
-        </button>
-
-        <button
-          onClick={() => {
-            setStatusFilter("in progress");
-            setShowFilters(false);
-          }}
-          className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-        >
-          In Progress
-        </button>
-      </div>
-
-    </div>
-  )}
-
-  <button className="px-3 py-2 bg-gray-800 text-white rounded-md text-sm">
-    Export
-  </button>
-
-</div>
+              {/* Status Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => { setIsStatusOpen(!isStatusOpen); setIsSortOpen(false); }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white hover:bg-gray-50 flex items-center gap-2 focus:outline-none shadow-sm transition-colors"
+                >
+                  Status: {statusFilter === "all" ? "All" : statusFilter === "submitted" ? "Submitted" : "In Progress"}
+                  <span className="text-xs">▼</span>
+                </button>
+                {/* Dropdown Menu */}
+                <div
+                  className={`absolute left-0 mt-2 w-36 bg-white border border-gray-200 rounded-lg shadow-lg z-50 transition-all duration-200 origin-top flex flex-col overflow-hidden ${isStatusOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-2 pointer-events-none'}`}
+                >
+                  <button
+                    onClick={() => { setStatusFilter("all"); setIsStatusOpen(false); }}
+                    className={`text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors ${statusFilter === "all" ? "bg-gray-50 font-medium text-blue-600" : ""}`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => { setStatusFilter("submitted"); setIsStatusOpen(false); }}
+                    className={`text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors ${statusFilter === "submitted" ? "bg-gray-50 font-medium text-blue-600" : ""}`}
+                  >
+                    Submitted
+                  </button>
+                  <button
+                    onClick={() => { setStatusFilter("in progress"); setIsStatusOpen(false); }}
+                    className={`text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors ${statusFilter === "in progress" ? "bg-gray-50 font-medium text-blue-600" : ""}`}
+                  >
+                    In Progress
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
         </div>
@@ -244,95 +234,87 @@ filteredComplaints = filteredComplaints.sort((a, b) => {
 
             <table className="w-full text-sm">
 
-            <thead className="sticky top-0 z-10 bg-gradient-to-r from-[#5b3a2e] to-[#8b5e49] text-white">
-              <tr>
-                <th className="p-3 text-left">Ticket ID</th>
-                <th className="p-3 text-left">Title</th>
-                <th className="p-3 text-left">Severity</th>
-                <th className="p-3 text-left">Status</th>
-                <th className="p-3 text-left">Action</th>
-              </tr>
-            </thead>
+              <thead className="sticky top-0 z-10 bg-gradient-to-r from-[#5b3a2e] to-[#8b5e49] text-white">
+                <tr>
+                  <th className="p-3 text-left">Ticket ID</th>
+                  <th className="p-3 text-left">Title</th>
+                  <th className="p-3 text-left">Severity</th>
+                  <th className="p-3 text-left">Status</th>
+                  <th className="p-3 text-left">Action</th>
+                </tr>
+              </thead>
 
-            <tbody>
-              {filteredComplaints.map((c) => (
-                <tr key={c.id}
-                onClick={() => setSelectedComplaintId(c.id)}
-                className="border-t hover:bg-gray-50 cursor-pointer transition">
+              <tbody>
+                {filteredComplaints.map((c) => (
+                  <tr key={c.id}
+                    onClick={() => setSelectedComplaintId(c.id)}
+                    className="border-t hover:bg-gray-50 cursor-pointer transition">
 
-                  <td className="p-3">{c.id}</td>
+                    <td className="p-3 font-mono">{c.ticket_id}</td>
 
-                  <td className="p-3">{c.title}</td>
+                    <td className="p-3">{c.title}</td>
 
-                  <td className="p-3">
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold
-                        ${
-                          c.severity === "Low"
+                    <td className="p-3">
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-semibold
+                        ${c.severity === "Low"
                             ? "bg-green-100 text-green-700"
                             : ""
-                        }
-                        ${
-                          c.severity === "Medium"
+                          }
+                        ${c.severity === "Medium"
                             ? "bg-yellow-100 text-yellow-700"
                             : ""
-                        }
-                        ${
-                          c.severity === "High"
+                          }
+                        ${c.severity === "High"
                             ? "bg-orange-100 text-orange-700"
                             : ""
-                        }
-                        ${
-                          c.severity === "Critical"
+                          }
+                        ${c.severity === "Critical"
                             ? "bg-red-100 text-red-700"
                             : ""
-                        }
+                          }
                       `}
-                    >
-                      {c.severity}
-                    </span>
-                  </td>
+                      >
+                        {c.severity}
+                      </span>
+                    </td>
 
-                  <td className="p-3">
-                    <span className="px-3 py-1 rounded-full bg-gray-200 text-xs">
-                      {c.status}
-                    </span>
-                  </td>
+                    <td className="p-3">
+                      <span className="px-3 py-1 rounded-full bg-gray-200 text-xs">
+                        {c.status}
+                      </span>
+                    </td>
 
-                  <td className="p-3 flex gap-3 text-sm">
+                    <td className="p-3 flex gap-3 text-sm">
 
-                    <button className="text-blue-600 hover:underline">
-                      View
-                    </button>
+                      <button className="text-blue-600 hover:underline">
+                        View
+                      </button>
 
-                    <button className="text-gray-700 hover:underline">
-                      Edit
-                    </button>
+                      <button className="text-gray-700 hover:underline">
+                        Edit
+                      </button>
 
-                    <button className="text-red-600 hover:underline">
-                      Delete
-                    </button>
+                      <button className="text-red-600 hover:underline">
+                        Delete
+                      </button>
 
-                  </td>
+                    </td>
 
-                </tr>
-              ))}
-{filteredComplaints.length === 0 && (
-  <tr>
-    <td colSpan={5} className="text-center p-6 text-gray-500">
-      No complaints found
-    </td>
-  </tr>
-)}
-            </tbody>
-
-          </table>
-
+                  </tr>
+                ))}
+                {filteredComplaints.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="text-center p-6 text-gray-500">
+                      No complaints found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-
       </div>
-
     </div>
-    
   );
 }
