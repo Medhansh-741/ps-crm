@@ -689,7 +689,6 @@ DIGIPIN encoding is a pure algorithm — no external API call required. Even in 
 
 | Feature | Support |
 |---|---|
-| **Progressive Web App (PWA)** | Installable on Android and iOS — no app store required |
 | **Mobile browsers** | Chrome, Safari, Firefox (Android and iOS) |
 | **Desktop browsers** | Chrome, Firefox, Edge, Safari |
 | **Offline capability** | DIGIPIN encoding works offline; complaint form data cached locally |
