@@ -11,7 +11,6 @@ export type ComplaintStatus =
 
 export type SeverityLevel = "L1" | "L2" | "L3" | "L4"
 
-// Matches complaints table exactly per database.types.ts
 export type AuthorityComplaintRow = {
   id: string
   ticket_id: string
@@ -30,9 +29,12 @@ export type AuthorityComplaintRow = {
 }
 
 export type TrendPoint = {
-  month: string
+  day: string       // "Mon 10", "Tue 11" etc  — used for day view
+  month: string     // "Mar '26" etc            — kept for compat
   submitted: number
   resolved: number
+  in_progress: number
+  assigned: number
 }
 
 export type WorkerOption = {
@@ -59,46 +61,92 @@ export const SEVERITY_RANK: Record<SeverityLevel, number> = {
   L4: 4, L3: 3, L2: 2, L1: 1,
 }
 
-export const SEVERITY_META: Record<SeverityLevel, { label: string; dot: string; badge: string }> = {
-  L1: { label: "L1", dot: "bg-blue-400",   badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
-  L2: { label: "L2", dot: "bg-yellow-400", badge: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" },
-  L3: { label: "L3 High",     dot: "bg-orange-500", badge: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" },
-  L4: { label: "L4 Critical", dot: "bg-red-500",    badge: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+export const SEVERITY_META: Record<SeverityLevel, { label: string; shortLabel: string; dot: string; badge: string }> = {
+  L1: {
+    label: "Low",      shortLabel: "Low",
+    dot:   "bg-sky-400",
+    badge: "bg-sky-50 text-sky-700 ring-1 ring-sky-200 dark:bg-sky-900/30 dark:text-sky-300",
+  },
+  L2: {
+    label: "Medium",   shortLabel: "Med",
+    dot:   "bg-amber-400",
+    badge: "bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-900/30 dark:text-amber-300",
+  },
+  L3: {
+    label: "High",     shortLabel: "High",
+    dot:   "bg-orange-500",
+    badge: "bg-orange-50 text-orange-700 ring-1 ring-orange-200 dark:bg-orange-900/30 dark:text-orange-300",
+  },
+  L4: {
+    label: "Critical", shortLabel: "Crit",
+    dot:   "bg-red-500",
+    badge: "bg-red-50 text-red-700 ring-1 ring-red-200 dark:bg-red-900/30 dark:text-red-400",
+  },
 }
 
-export const STATUS_META: Record<ComplaintStatus, { label: string; badge: string }> = {
-  submitted:    { label: "Submitted",    badge: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" },
-  under_review: { label: "Under Review", badge: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" },
-  assigned:     { label: "Assigned",     badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
-  in_progress:  { label: "In Progress",  badge: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300" },
-  resolved:     { label: "Resolved",     badge: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" },
-  rejected:     { label: "Rejected",     badge: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" },
-  escalated:    { label: "Escalated",    badge: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" },
+export const STATUS_META: Record<ComplaintStatus, { label: string; badge: string; step: number }> = {
+  submitted:    { label: "Submitted",    badge: "bg-gray-100 text-gray-600 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300",             step: 1 },
+  under_review: { label: "Under Review", badge: "bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300", step: 2 },
+  assigned:     { label: "Assigned",     badge: "bg-blue-50 text-blue-700 ring-1 ring-blue-200 dark:bg-blue-900/30 dark:text-blue-300",            step: 3 },
+  in_progress:  { label: "In Progress",  badge: "bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300", step: 4 },
+  resolved:     { label: "Resolved",     badge: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300", step: 5 },
+  rejected:     { label: "Rejected",     badge: "bg-red-50 text-red-600 ring-1 ring-red-200 dark:bg-red-900/30 dark:text-red-400",                 step: 0 },
+  escalated:    { label: "Escalated",    badge: "bg-purple-50 text-purple-700 ring-1 ring-purple-200 dark:bg-purple-900/30 dark:text-purple-300",  step: 6 },
 }
+
+// Workflow steps shown in the detail panel
+export const WORKFLOW_STEPS: { key: ComplaintStatus | "_worker"; label: string; actor: string }[] = [
+  { key: "submitted",    label: "Filed",         actor: "Citizen"    },
+  { key: "under_review", label: "Under Review",  actor: "Admin"      },
+  { key: "assigned",     label: "Assigned",      actor: "Authority"  },
+  { key: "_worker",      label: "Work Started",  actor: "Worker"     },
+  { key: "in_progress",  label: "In Progress",   actor: "Worker"     },
+  { key: "resolved",     label: "Resolved",      actor: "Worker"     },
+]
 
 export const STATUS_CHART_COLOR: Record<ComplaintStatus, string> = {
-  submitted:    "#9ca3af",
-  under_review: "#fbbf24",
-  assigned:     "#60a5fa",
-  in_progress:  "#818cf8",
-  resolved:     "#4ade80",
-  rejected:     "#f87171",
-  escalated:    "#c084fc",
+  submitted:    "#94a3b8",
+  under_review: "#f59e0b",
+  assigned:     "#3b82f6",
+  in_progress:  "#6366f1",
+  resolved:     "#10b981",
+  rejected:     "#ef4444",
+  escalated:    "#a855f7",
+}
+
+// ── Trend helpers ──────────────────────────────────────────────────────────────
+
+export function dayLabel(date: Date): string {
+  return date.toLocaleDateString("en-IN", { weekday: "short", day: "numeric" })
 }
 
 export function monthLabel(date: Date): string {
   return date.toLocaleDateString("en-IN", { month: "short", year: "2-digit" })
 }
 
-export function buildSixMonthBuckets(): Record<string, { submitted: number; resolved: number }> {
-  const buckets: Record<string, { submitted: number; resolved: number }> = {}
-  for (let i = 5; i >= 0; i--) {
+/** Last N days (default 7), newest last */
+export function buildDayBuckets(n = 7): Record<string, Omit<TrendPoint, "day" | "month">> {
+  const buckets: Record<string, Omit<TrendPoint, "day" | "month">> = {}
+  for (let i = n - 1; i >= 0; i--) {
     const d = new Date()
-    d.setMonth(d.getMonth() - i)
-    buckets[monthLabel(d)] = { submitted: 0, resolved: 0 }
+    d.setDate(d.getDate() - i)
+    buckets[dayLabel(d)] = { submitted: 0, resolved: 0, in_progress: 0, assigned: 0 }
   }
   return buckets
 }
+
+/** Last 6 months, newest last */
+export function buildSixMonthBuckets(): Record<string, Omit<TrendPoint, "day" | "month">> {
+  const buckets: Record<string, Omit<TrendPoint, "day" | "month">> = {}
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date()
+    d.setMonth(d.getMonth() - i)
+    buckets[monthLabel(d)] = { submitted: 0, resolved: 0, in_progress: 0, assigned: 0 }
+  }
+  return buckets
+}
+
+// ── Stats ──────────────────────────────────────────────────────────────────────
 
 export function computeStats(complaints: AuthorityComplaintRow[]): DashboardStats {
   const now        = new Date()
@@ -110,9 +158,7 @@ export function computeStats(complaints: AuthorityComplaintRow[]): DashboardStat
     resolvedThisMonth: complaints.filter(
       c => c.status === "resolved" && new Date(c.created_at).getTime() >= monthStart
     ).length,
-    slaBreached: complaints.filter(
-      c => c.sla_breached && c.status !== "resolved"
-    ).length,
+    slaBreached: complaints.filter(c => c.sla_breached && c.status !== "resolved").length,
   }
 }
 

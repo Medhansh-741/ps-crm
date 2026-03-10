@@ -12,12 +12,12 @@ import AuthorityNotificationBell from "@/app/authority/_components/AuthorityNoti
 
 export default function AuthorityLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  const [isCollapsed, setIsCollapsed] = useState(false)
-  const [profileOpen, setProfileOpen] = useState(false)
-  const [userName, setUserName] = useState("")
+  const [isCollapsed,   setIsCollapsed]   = useState(false)
+  const [profileOpen,   setProfileOpen]   = useState(false)
+  const [userName,      setUserName]      = useState("")
   const profileRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
-  const router = useRouter()
+  const router   = useRouter()
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -53,36 +53,18 @@ export default function AuthorityLayout({ children }: { children: React.ReactNod
 
   const sidebarConfig = {
     ...defaultSidebarConfig,
-    branding: {
-      ...defaultSidebarConfig.branding,
-      title: "Authority",
-      icon: (
-        <div
-          className="w-10 h-10 lg:w-[42px] lg:h-[42px] bg-[#C9A84C]"
-          style={{
-            WebkitMaskImage: 'url(/Emblem.svg)',
-            WebkitMaskSize: 'contain',
-            WebkitMaskRepeat: 'no-repeat',
-            WebkitMaskPosition: 'center',
-            maskImage: 'url(/Emblem.svg)',
-            maskSize: 'contain',
-            maskRepeat: 'no-repeat',
-            maskPosition: 'center',
-          }}
-        />
-      ),
-    },
+    branding: { ...defaultSidebarConfig.branding, title: "Authority" },
     navigation: [
-      { id: "dashboard", name: "Dashboard", icon: <LayoutGrid size={20} strokeWidth={2} />, href: "/authority", isActive: pathname === "/authority" },
-      { id: "track", name: "Track Complaints", icon: <ClipboardList size={20} strokeWidth={2} />, href: "/authority/track", isActive: pathname.startsWith("/authority/track") },
-      { id: "workers", name: "Workers", icon: <Users size={20} strokeWidth={2} />, href: "/authority/workers", isActive: pathname.startsWith("/authority/workers") },
-      { id: "reports", name: "Reports", icon: <BarChart2 size={20} strokeWidth={2} />, href: "/authority/reports", isActive: pathname.startsWith("/authority/reports") },
+      { id: "dashboard", name: "Dashboard",        icon: <LayoutGrid    size={20} strokeWidth={2} />, href: "/authority",         isActive: pathname === "/authority" },
+      { id: "track",     name: "Track Complaints", icon: <ClipboardList size={20} strokeWidth={2} />, href: "/authority/track",   isActive: pathname.startsWith("/authority/track") },
+      { id: "workers",   name: "Workers",          icon: <Users         size={20} strokeWidth={2} />, href: "/authority/workers", isActive: pathname.startsWith("/authority/workers") },
+      { id: "reports",   name: "Reports",          icon: <BarChart2     size={20} strokeWidth={2} />, href: "/authority/reports", isActive: pathname.startsWith("/authority/reports") },
     ],
     bottomNavigation: defaultSidebarConfig.bottomNavigation,
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-[#161616]">
+    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
 
       <Sidebar
         {...sidebarConfig}
@@ -94,9 +76,9 @@ export default function AuthorityLayout({ children }: { children: React.ReactNod
 
       <div className="flex flex-1 min-w-0 flex-col">
 
-        <header className="sticky top-0 z-[1001] flex h-14 shrink-0 items-center justify-between
+        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between
                            border-b border-gray-200 bg-white px-5
-                           dark:border-[#2a2a2a] dark:bg-[#1a1a1a]">
+                           dark:border-gray-800 dark:bg-gray-950">
           {/* Mobile hamburger */}
           <button
             onClick={() => setIsSidebarOpen(true)}
