@@ -89,7 +89,7 @@ export default function HomePage() {
             <div className="relative z-10 pt-6 lg:pt-10">
               <AnimatedText
                 as="h2"
-                text="Transforming Public Service with the PS-CRM"
+                text="Transforming Public Service with the JanSamadhan Platform"
                 className="text-3xl font-bold tracking-tight md:text-4xl lg:text-[2.75rem] lg:leading-tight"
                 animateOnScroll
               />
