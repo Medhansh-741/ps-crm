@@ -718,7 +718,7 @@ JanSamadhan is designed from day one for national scale. The Delhi pilot covers 
 
 ---
 
-<img src="./Emblem.svg" alt="JanSamadhan" width="50" height="80" />
+<img src="./Emblem_rm.svg" alt="JanSamadhan" width="50" height="80" />
 
 **जन समाधान**
 
