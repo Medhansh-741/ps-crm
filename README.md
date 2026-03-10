@@ -16,7 +16,7 @@
 [![Gemini](https://img.shields.io/badge/Gemini_AI_(Free_Tier)-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
 [![DIGIPIN](https://img.shields.io/badge/DIGIPIN-India_Post_Standard-FF6600?style=for-the-badge)](https://www.indiapost.gov.in/)
 
-> **Hackathon Submission · March 2026 · Team 404 **
+> **Hackathon Submission · March 2026 · Team 404**
 
 *Every complaint is a contract between a citizen and their government.*
 *JanSamadhan makes that contract **visible, enforceable, and measurable.***
