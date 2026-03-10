@@ -1,0 +1,365 @@
+"use client";
+
+import { useEffect, useState, useCallback, useRef } from "react";
+import { supabase } from "@/src/lib/supabase";
+import type { Tables } from "@/src/types/database.types";
+import { calculateDistanceMeters, type GeoPoint } from "./distance";
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type SeverityLevel = "L1" | "L2" | "L3" | "L4";
+
+export type MappedComplaint = {
+  id: string;
+  ticket_id: string | null;
+  title: string;
+  description: string;
+  severity: SeverityLevel;
+  effective_severity: SeverityLevel;
+  lat: number;
+  lng: number;
+  photo_urls: string[] | null;
+  upvote_count: number;
+  status: string;
+  created_at: string;
+  address_text: string | null;
+  ward_name: string | null;
+  category_id: number;
+  assigned_department: string | null;
+};
+
+export const SEVERITY_CONFIG: Record<SeverityLevel, { label: string; color: string; level: number }> = {
+  L1: { label: "Low",      color: "#22c55e", level: 1 },
+  L2: { label: "Medium",   color: "#eab308", level: 2 },
+  L3: { label: "Urgent",   color: "#f97316", level: 3 },
+  L4: { label: "Critical", color: "#ef4444", level: 4 },
+};
+
+export function getSeverityConfig(sev: string) {
+  return SEVERITY_CONFIG[sev as SeverityLevel] ?? SEVERITY_CONFIG.L1;
+}
+
+function normalizeSeverity(value: unknown, fallback: SeverityLevel = "L1"): SeverityLevel {
+  if (value === "L1" || value === "L2" || value === "L3" || value === "L4") {
+    return value;
+  }
+  return fallback;
+}
+
+// ─── Location Parser ──────────────────────────────────────────────────────────
+
+function parseEwkbHexPoint(hex: string): { lat: number; lng: number } | null {
+  const normalized = hex.trim();
+  if (!/^[0-9a-fA-F]+$/.test(normalized) || normalized.length < 42) return null;
+  try {
+    const bytes = new Uint8Array(normalized.length / 2);
+    for (let i = 0; i < normalized.length; i += 2)
+      bytes[i / 2] = parseInt(normalized.slice(i, i + 2), 16);
+    const view = new DataView(bytes.buffer);
+    const littleEndian = view.getUint8(0) === 1;
+    const typeWithFlags = view.getUint32(1, littleEndian);
+    const hasSrid = (typeWithFlags & 0x20000000) !== 0;
+    const geomType = typeWithFlags & 0x000000ff;
+    if (geomType !== 1) return null;
+    const coordOffset = hasSrid ? 9 : 5;
+    if (bytes.byteLength < coordOffset + 16) return null;
+    const lng = view.getFloat64(coordOffset, littleEndian);
+    const lat = view.getFloat64(coordOffset + 8, littleEndian);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return { lat, lng };
+  } catch {
+    return null;
+  }
+}
+
+function parseLocation(location: unknown): { lat: number; lng: number } | null {
+  if (!location) return null;
+  if (typeof location === "object") {
+    const o = location as Record<string, unknown>;
+    if (Array.isArray(o.coordinates) && o.coordinates.length >= 2) {
+      const lng = Number(o.coordinates[0]);
+      const lat = Number(o.coordinates[1]);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+    }
+    const latVal = o.lat ?? o.latitude;
+    const lngVal = o.lng ?? o.lon ?? o.longitude;
+    if (latVal !== undefined && lngVal !== undefined) {
+      const lat = Number(latVal); const lng = Number(lngVal);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+    }
+  }
+  if (typeof location === "string") {
+    const ewkb = parseEwkbHexPoint(location);
+    if (ewkb) return ewkb;
+    const m = location.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
+    if (m) return { lng: Number(m[1]), lat: Number(m[2]) };
+  }
+  return null;
+}
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
+function applyFilter(
+  complaints: MappedComplaint[],
+  center: GeoPoint | null,
+  radiusMeters: number
+): MappedComplaint[] {
+  if (!center || complaints.length === 0) return [];
+
+  return complaints
+    .filter((c) => calculateDistanceMeters(center, { lat: c.lat, lng: c.lng }) <= radiusMeters)
+    .sort((a, b) => b.upvote_count - a.upvote_count);
+}
+
+export function useNearbyTickets() {
+  const [allComplaints, setAllComplaints] = useState<MappedComplaint[]>([]);
+  const [visibleComplaints, setVisibleComplaints] = useState<MappedComplaint[]>([]);
+  const [hasUpvoted, setHasUpvoted] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const lastCenterRef = useRef<GeoPoint | null>(null);
+  const lastRadiusRef = useRef<number>(1000);
+  const userIdRef = useRef<string | null>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  async function fetchComplaints() {
+    setLoading(true);
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      const token = session?.access_token ?? null;
+      if (sessionError || !token) {
+        setError("Please sign in to view nearby tickets");
+        setLoading(false);
+        return;
+      }
+
+      const res = await fetch("/api/citizen/nearby", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      const payload = (await res.json()) as { error?: string; items?: Tables<"complaints">[] };
+
+      if (!res.ok || !Array.isArray(payload.items)) {
+        setError(payload.error ?? "Failed to load complaints");
+        setLoading(false);
+        return;
+      }
+
+    const data = payload.items;
+
+    type Row = Tables<"complaints">;
+    const mapped: MappedComplaint[] = (data as Row[])
+      .map((c) => {
+        const pos = parseLocation(c.location);
+        if (!pos) return null;
+        const normalizedSeverity = normalizeSeverity(c.severity);
+        return {
+          id: c.id,
+          ticket_id: c.ticket_id,
+          title: c.title,
+          description: c.description,
+          // Citizen nearby should mirror generated ticket severity unless backend performs explicit override.
+          severity: normalizedSeverity,
+          effective_severity: normalizedSeverity,
+          lat: pos.lat,
+          lng: pos.lng,
+          photo_urls: c.photo_urls,
+          upvote_count: c.upvote_count,
+          status: c.status,
+          created_at: c.created_at,
+          address_text: c.address_text,
+          ward_name: c.ward_name,
+          category_id: c.category_id,
+          assigned_department: c.assigned_department,
+        };
+      })
+      .filter(Boolean) as MappedComplaint[];
+
+      setAllComplaints(mapped);
+      // Re-apply filter now that data is loaded
+      setVisibleComplaints(applyFilter(mapped, lastCenterRef.current, lastRadiusRef.current));
+      setError(null);
+      setLoading(false);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Unknown error occurred";
+      setError(errorMsg || "Failed to load complaints");
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchComplaints();
+    setupRealtimeSubscription();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      stopPolling();
+      unsubscribeFromRealtime();
+    };
+  }, []);
+
+  function startPolling() {
+    if (pollingIntervalRef.current) return;
+    pollingIntervalRef.current = setInterval(() => {
+      fetchComplaints();
+    }, 20000); // 20 seconds
+  }
+
+  function stopPolling() {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  }
+
+  function setupRealtimeSubscription() {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user?.id) return;
+      userIdRef.current = session.user.id;
+
+      const channel = supabase
+        .channel("public:complaints", {
+          config: { broadcast: { self: true } },
+        })
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "complaints",
+          },
+          (payload: RealtimePostgresChangesPayload<Tables<"complaints">>) => {
+            handleRealtimeEvent(payload);
+          }
+        )
+        .subscribe((status) => {
+          if (status === "CHANNEL_ERROR") {
+            console.log("Realtime channel error, falling back to polling");
+            startPolling();
+          }
+        });
+
+      channelRef.current = channel;
+    });
+  }
+
+  function unsubscribeFromRealtime() {
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+  }
+
+  function handleRealtimeEvent(payload: RealtimePostgresChangesPayload<Tables<"complaints">>) {
+    const eventType = payload.eventType;
+
+    if (eventType === "INSERT" || eventType === "UPDATE") {
+      const newData = payload.new as Tables<"complaints">;
+
+      // Skip own tickets
+      if (newData.citizen_id === userIdRef.current) {
+        // Remove own ticket if it exists
+        if (eventType === "INSERT") {
+          setAllComplaints((prev) => prev.filter((c) => c.id !== newData.id));
+        }
+        return;
+      }
+
+      const pos = parseLocation(newData.location);
+      if (!pos) return;
+
+      const normalizedSeverity = normalizeSeverity(newData.severity);
+      const mapped: MappedComplaint = {
+        id: newData.id,
+        ticket_id: newData.ticket_id,
+        title: newData.title,
+        description: newData.description,
+        // Keep realtime updates aligned with generated severity by default.
+        severity: normalizedSeverity,
+        effective_severity: normalizedSeverity,
+        lat: pos.lat,
+        lng: pos.lng,
+        photo_urls: newData.photo_urls,
+        upvote_count: newData.upvote_count,
+        status: newData.status,
+        created_at: newData.created_at,
+        address_text: newData.address_text,
+        ward_name: newData.ward_name,
+        category_id: newData.category_id,
+        assigned_department: newData.assigned_department,
+      };
+
+      setAllComplaints((prev) => {
+        const existingIndex = prev.findIndex((c) => c.id === mapped.id);
+        const updated = existingIndex >= 0
+          ? [...prev.slice(0, existingIndex), mapped, ...prev.slice(existingIndex + 1)]
+          : [...prev, mapped];
+        // Re-apply filter after update
+        setVisibleComplaints(applyFilter(updated, lastCenterRef.current, lastRadiusRef.current));
+        return updated;
+      });
+    } else if (eventType === "DELETE") {
+      const oldData = payload.old as Tables<"complaints">;
+      setAllComplaints((prev) => {
+        const updated = prev.filter((c) => c.id !== oldData.id);
+        // Re-apply filter after delete
+        setVisibleComplaints(applyFilter(updated, lastCenterRef.current, lastRadiusRef.current));
+        return updated;
+      });
+    }
+  }
+
+  const updateRadius = useCallback(
+    (center: GeoPoint, radiusMeters: number) => {
+      // Clamp radius to max 2km
+      const clampedRadius = Math.min(radiusMeters, 2000);
+      lastCenterRef.current = center;
+      lastRadiusRef.current = clampedRadius;
+      setVisibleComplaints(applyFilter(allComplaints, center, clampedRadius));
+    },
+    [allComplaints]
+  );
+
+  async function handleUpvote(id: string) {
+    if (hasUpvoted.has(id)) return;
+    setHasUpvoted((prev) => new Set([...prev, id]));
+    setAllComplaints((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, upvote_count: c.upvote_count + 1 } : c))
+    );
+    setVisibleComplaints((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, upvote_count: c.upvote_count + 1 } : c))
+    );
+    await supabase.rpc("increment_upvote_count", { p_complaint_id: id });
+  }
+
+  return {
+    allComplaints,
+    visibleComplaints,
+    hasUpvoted,
+    loading,
+    error,
+    updateRadius,
+    handleUpvote,
+  };
+}

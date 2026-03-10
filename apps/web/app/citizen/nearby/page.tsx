@@ -1,0 +1,472 @@
+"use client";
+
+import dynamic from "next/dynamic";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, ArrowUp, ChevronDown, X } from "lucide-react";
+
+import { useNearbyTickets } from "./_components/useNearbyTickets";
+import { getSeverityConfig } from "./_components/useNearbyTickets";
+import type { MappedComplaint, SeverityLevel } from "./_components/useNearbyTickets";
+import { useGeolocation } from "./_components/useGeolocation";
+import { formatDistance } from "./_components/distance";
+import { calculateDistanceMeters } from "./_components/distance";
+
+const NearbyTicketsMap = dynamic(
+  () => import("./_components/NearbyTicketsMap"),
+  { ssr: false }
+);
+
+function formatStatus(status: string): string {
+  return status
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function statusClasses(status: string): string {
+  const normalized = status.trim().toLowerCase();
+  if (normalized === "submitted") return "bg-amber-100 text-amber-700";
+  if (normalized === "assigned") return "bg-blue-100 text-blue-700";
+  if (normalized === "in_progress" || normalized === "under_review") return "bg-purple-100 text-purple-700";
+  if (normalized === "resolved") return "bg-green-100 text-green-700";
+  if (normalized === "rejected") return "bg-red-100 text-red-700";
+  return "bg-gray-100 text-gray-600";
+}
+
+function formatReportedTime(timestamp: string): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+  if (diffInSeconds < 60) return "Just now";
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function uniqueSorted(items: Array<string | null | undefined>): string[] {
+  return Array.from(new Set(items.filter((v): v is string => Boolean(v && v.trim())))).sort();
+}
+
+export default function NearbyTicketsPage() {
+  const {
+    visibleComplaints,
+    loading,
+    error,
+    updateRadius,
+    handleUpvote,
+  } = useNearbyTickets();
+  const {
+    location,
+    accuracyMeters,
+    lastUpdatedAt,
+    state: geolocationState,
+    error: geolocationError,
+    requestLocation,
+  } = useGeolocation();
+
+  const [selectedComplaintId, setSelectedComplaintId] = useState<string | null>(null);
+  const [flyTarget, setFlyTarget] = useState<{ lat: number; lng: number } | null>(null);
+  const [radiusMeters, setRadiusMeters] = useState(1000);
+  const [departmentFilter, setDepartmentFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [severityFilter, setSeverityFilter] = useState<SeverityLevel | null>(null);
+
+  const [departmentDropdownOpen, setDepartmentDropdownOpen] = useState(false);
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+  const [severityDropdownOpen, setSeverityDropdownOpen] = useState(false);
+  const [nowTs, setNowTs] = useState<number>(Date.now());
+
+  const lastFilterCenterRef = useRef<{ lat: number; lng: number } | null>(null);
+  const lastFilterRadiusRef = useRef<number>(radiusMeters);
+
+  useEffect(() => {
+    if (!location) return;
+
+    const lastCenter = lastFilterCenterRef.current;
+    const lastRadius = lastFilterRadiusRef.current;
+    const radiusChanged = lastRadius !== radiusMeters;
+
+    const movedMeters = lastCenter
+      ? calculateDistanceMeters(lastCenter, location)
+      : Number.POSITIVE_INFINITY;
+
+    if (!radiusChanged && movedMeters < 10) return;
+
+    updateRadius(location, radiusMeters);
+    lastFilterCenterRef.current = location;
+    lastFilterRadiusRef.current = radiusMeters;
+  }, [location, radiusMeters, updateRadius]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNowTs(Date.now());
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const availableDepartments = useMemo(
+    () => uniqueSorted(visibleComplaints.map((c) => c.assigned_department).filter((d) => d !== "Unassigned")),
+    [visibleComplaints]
+  );
+
+  const availableStatuses = useMemo(
+    () => uniqueSorted(visibleComplaints.map((c) => c.status)),
+    [visibleComplaints]
+  );
+
+  const availableSeverities = useMemo(() => {
+    return Array.from(new Set(visibleComplaints.map((c) => (c.effective_severity || c.severity) as SeverityLevel)))
+      .sort((a, b) => getSeverityConfig(a).level - getSeverityConfig(b).level);
+  }, [visibleComplaints]);
+
+  const filteredComplaints = useMemo(() => {
+    const filtered = visibleComplaints.filter((complaint) => {
+      if (departmentFilter && complaint.assigned_department !== departmentFilter) return false;
+      if (statusFilter && complaint.status !== statusFilter) return false;
+      if (severityFilter && (complaint.effective_severity || complaint.severity) !== severityFilter) return false;
+      return true;
+    });
+
+    return filtered.sort((a, b) => {
+      const upvoteDiff = (b.upvote_count ?? 0) - (a.upvote_count ?? 0);
+      if (upvoteDiff !== 0) return upvoteDiff;
+
+      const severityDiff =
+        getSeverityConfig(b.effective_severity || b.severity).level -
+        getSeverityConfig(a.effective_severity || a.severity).level;
+      if (severityDiff !== 0) return severityDiff;
+
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [visibleComplaints, departmentFilter, statusFilter, severityFilter]);
+
+  const hasActiveFilters = Boolean(departmentFilter || statusFilter || severityFilter);
+
+  useEffect(() => {
+    if (departmentFilter && !availableDepartments.includes(departmentFilter)) {
+      setDepartmentFilter(null);
+    }
+  }, [departmentFilter, availableDepartments]);
+
+  useEffect(() => {
+    if (statusFilter && !availableStatuses.includes(statusFilter)) {
+      setStatusFilter(null);
+    }
+  }, [statusFilter, availableStatuses]);
+
+  useEffect(() => {
+    if (severityFilter && !availableSeverities.includes(severityFilter)) {
+      setSeverityFilter(null);
+    }
+  }, [severityFilter, availableSeverities]);
+
+  function handleSelectComplaint(complaint: MappedComplaint) {
+    setSelectedComplaintId(complaint.id);
+    setFlyTarget({ lat: complaint.lat, lng: complaint.lng });
+  }
+
+  function closeAllDropdowns() {
+    setDepartmentDropdownOpen(false);
+    setStatusDropdownOpen(false);
+    setSeverityDropdownOpen(false);
+  }
+
+  function clearFilters() {
+    setDepartmentFilter(null);
+    setStatusFilter(null);
+    setSeverityFilter(null);
+  }
+
+  const locationReady = Boolean(location);
+  const secondsSinceLastLocation = lastUpdatedAt
+    ? Math.max(0, Math.floor((nowTs - lastUpdatedAt) / 1000))
+    : null;
+  const locationFreshnessText = lastUpdatedAt
+    ? `${secondsSinceLastLocation ?? 0}s ago`
+    : "-";
+  const gpsSignalStale = locationReady && secondsSinceLastLocation !== null && secondsSinceLastLocation > 15;
+  const lowAccuracy = typeof accuracyMeters === "number" && accuracyMeters > 50;
+
+  return (
+    <div className="flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden bg-gray-50 dark:bg-gray-950">
+      <div className="shrink-0 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+        <NearbyTicketsMap
+          complaints={filteredComplaints}
+          selectedId={selectedComplaintId}
+          flyTarget={flyTarget}
+          userLocation={location}
+          radiusMeters={radiusMeters}
+          onRadiusChange={setRadiusMeters}
+          onMarkerClick={handleSelectComplaint}
+        />
+      </div>
+
+      <div className="flex-1 min-h-0 min-w-0 max-w-full overflow-hidden p-3">
+        <section className="flex-1 min-h-0 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col max-h-[calc(100vh-14rem)] lg:max-h-[calc(100vh-12rem)]">
+          {(gpsSignalStale || lowAccuracy) && (
+            <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/50 dark:text-amber-200">
+              {gpsSignalStale ? "Searching for GPS signal... live updates are temporarily delayed." : ""}
+              {gpsSignalStale && lowAccuracy ? " " : ""}
+              {lowAccuracy ? `Low GPS accuracy detected (±${Math.round(accuracyMeters ?? 0)}m).` : ""}
+            </div>
+          )}
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-gray-200 bg-gray-50 px-4 py-3">
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setDepartmentDropdownOpen((v) => !v);
+                  setStatusDropdownOpen(false);
+                  setSeverityDropdownOpen(false);
+                }}
+                className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                Department: {departmentFilter ?? "All"}
+                <ChevronDown size={16} className={`transition-transform ${departmentDropdownOpen ? "rotate-180" : ""}`} />
+              </button>
+              {departmentDropdownOpen && (
+                <div className="absolute left-0 top-full z-20 mt-1 w-52 rounded-lg border border-gray-300 bg-white shadow-lg">
+                  <button
+                    onClick={() => {
+                      setDepartmentFilter(null);
+                      closeAllDropdowns();
+                    }}
+                    className={`w-full px-4 py-2 text-left text-sm transition-colors hover:bg-gray-100 ${
+                      departmentFilter === null ? "bg-purple-50 font-medium text-purple-700" : ""
+                    }`}
+                  >
+                    All Departments
+                  </button>
+                  {availableDepartments.map((department) => (
+                    <button
+                      key={department}
+                      onClick={() => {
+                        setDepartmentFilter(department);
+                        closeAllDropdowns();
+                      }}
+                      className={`w-full px-4 py-2 text-left text-sm transition-colors hover:bg-gray-100 ${
+                        departmentFilter === department ? "bg-purple-50 font-medium text-purple-700" : ""
+                      }`}
+                    >
+                      {department}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setStatusDropdownOpen((v) => !v);
+                  setDepartmentDropdownOpen(false);
+                  setSeverityDropdownOpen(false);
+                }}
+                className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                Status: {statusFilter ? formatStatus(statusFilter) : "All"}
+                <ChevronDown size={16} className={`transition-transform ${statusDropdownOpen ? "rotate-180" : ""}`} />
+              </button>
+              {statusDropdownOpen && (
+                <div className="absolute left-0 top-full z-20 mt-1 w-48 rounded-lg border border-gray-300 bg-white shadow-lg">
+                  <button
+                    onClick={() => {
+                      setStatusFilter(null);
+                      closeAllDropdowns();
+                    }}
+                    className={`w-full px-4 py-2 text-left text-sm transition-colors hover:bg-gray-100 ${
+                      statusFilter === null ? "bg-purple-50 font-medium text-purple-700" : ""
+                    }`}
+                  >
+                    All Statuses
+                  </button>
+                  {availableStatuses.map((status) => (
+                    <button
+                      key={status}
+                      onClick={() => {
+                        setStatusFilter(status);
+                        closeAllDropdowns();
+                      }}
+                      className={`w-full px-4 py-2 text-left text-sm transition-colors hover:bg-gray-100 ${
+                        statusFilter === status ? "bg-purple-50 font-medium text-purple-700" : ""
+                      }`}
+                    >
+                      {formatStatus(status)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setSeverityDropdownOpen((v) => !v);
+                  setDepartmentDropdownOpen(false);
+                  setStatusDropdownOpen(false);
+                }}
+                className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                Severity: {severityFilter ? getSeverityConfig(severityFilter).label : "All"}
+                <ChevronDown size={16} className={`transition-transform ${severityDropdownOpen ? "rotate-180" : ""}`} />
+              </button>
+              {severityDropdownOpen && (
+                <div className="absolute left-0 top-full z-20 mt-1 w-40 rounded-lg border border-gray-300 bg-white shadow-lg">
+                  <button
+                    onClick={() => {
+                      setSeverityFilter(null);
+                      closeAllDropdowns();
+                    }}
+                    className={`w-full px-4 py-2 text-left text-sm transition-colors hover:bg-gray-100 ${
+                      severityFilter === null ? "bg-purple-50 font-medium text-purple-700" : ""
+                    }`}
+                  >
+                    All Levels
+                  </button>
+                  {availableSeverities.map((severity) => (
+                    <button
+                      key={severity}
+                      onClick={() => {
+                        setSeverityFilter(severity);
+                        closeAllDropdowns();
+                      }}
+                      className={`w-full px-4 py-2 text-left text-sm transition-colors hover:bg-gray-100 ${
+                        severityFilter === severity ? "bg-purple-50 font-medium text-purple-700" : ""
+                      }`}
+                    >
+                      {getSeverityConfig(severity).label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+              >
+                <X size={16} />
+                Clear Filters
+              </button>
+            )}
+
+            <div className="ml-auto text-xs text-gray-500">
+              {filteredComplaints.length} ticket{filteredComplaints.length !== 1 ? "s" : ""} in view
+              {" · "}{formatDistance(radiusMeters)} radius
+              {accuracyMeters ? ` · ±${Math.round(accuracyMeters)}m GPS` : ""}
+              {` · update ${locationFreshnessText}`}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto flex-1 min-h-0 flex flex-col">
+            <div className="min-w-[940px] flex flex-col flex-1 min-h-0">
+              <div className="sticky top-0 z-10 grid grid-cols-[150px_2.2fr_1.2fr_1fr_1fr_100px_120px] gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <span>Ticket ID</span>
+                <span>Issue Title</span>
+                <span>Department</span>
+                <span>Status</span>
+                <span>Reported Time</span>
+                <span className="text-right">Upvotes</span>
+                <span>Severity</span>
+              </div>
+
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                {loading && (
+                  <div className="px-4 py-8 text-sm text-gray-500">Loading nearby tickets...</div>
+                )}
+
+                {!loading && error && (
+                  <div className="flex items-center gap-2 px-4 py-8 text-sm text-red-600">
+                    <AlertTriangle size={16} />
+                    {error}
+                  </div>
+                )}
+
+                {!loading && !error && visibleComplaints.length === 0 && (
+                  <div className="px-4 py-8 text-sm text-gray-500">
+                    No tickets found within {formatDistance(radiusMeters)} of your current location.
+                  </div>
+                )}
+
+                {!loading && !error && visibleComplaints.length > 0 && filteredComplaints.length === 0 && (
+                  <div className="px-4 py-8 text-sm text-gray-500">No tickets match your selected filters.</div>
+                )}
+
+                {!loading && !error && filteredComplaints.length > 0 && (
+                  <ul className="divide-y divide-gray-100">
+                    {filteredComplaints.map((complaint) => {
+                      const severity = getSeverityConfig(complaint.effective_severity || complaint.severity);
+                      const isSelected = selectedComplaintId === complaint.id;
+
+                      return (
+                        <li
+                          key={complaint.id}
+                          onClick={() => handleSelectComplaint(complaint)}
+                          className={`grid cursor-pointer grid-cols-[150px_2.2fr_1.2fr_1fr_1fr_100px_120px] gap-3 px-4 py-4 text-sm transition-colors ${
+                            isSelected ? "bg-blue-50" : "text-gray-700 hover:bg-gray-50"
+                          }`}
+                        >
+                          <span className="truncate font-mono text-xs font-medium text-gray-900 sm:text-sm">
+                            {complaint.ticket_id || complaint.id.slice(0, 8).toUpperCase()}
+                          </span>
+
+                          <span className="line-clamp-2 font-medium leading-snug text-gray-900">
+                            {complaint.title || "Untitled issue"}
+                          </span>
+
+                          <span className="line-clamp-2 leading-snug text-gray-700">
+                            {complaint.assigned_department || "Unassigned"}
+                          </span>
+
+                          <span>
+                            <span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${statusClasses(complaint.status || "")}`}>
+                              {formatStatus(complaint.status || "submitted")}
+                            </span>
+                          </span>
+
+                          <span className="text-xs text-gray-500 sm:text-sm">
+                            {formatReportedTime(complaint.created_at)}
+                          </span>
+
+                          <span className="inline-flex items-center justify-end gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleUpvote(complaint.id);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                            >
+                              <ArrowUp size={14} className="text-gray-400" />
+                              {complaint.upvote_count ?? 0}
+                            </button>
+                          </span>
+
+                          <span>
+                            <span
+                              className="inline-flex rounded-md px-2 py-1 text-xs font-semibold uppercase"
+                              style={{ background: `${severity.color}22`, color: severity.color }}
+                            >
+                              {severity.label}
+                            </span>
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}

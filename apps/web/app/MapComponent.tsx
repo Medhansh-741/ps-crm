@@ -1,3 +1,16 @@
 "use client";
 
-export { default } from "@/components/MapComponent";
+import dynamic from "next/dynamic";
+
+const MapComponent = dynamic(() => import("@/components/MapComponent"), {
+  ssr: false,
+});
+
+export default function MapPage({
+  selectedComplaintId,
+}: {
+  selectedComplaintId?: string | null;
+}) {
+  return <MapComponent selectedComplaintId={selectedComplaintId} />;
+}
+

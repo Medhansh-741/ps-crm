@@ -1,0 +1,28 @@
+import { AlertTriangle, Eye, UserPlus } from "lucide-react"
+
+type TicketActionsProps = {
+  ticketId: string
+  disabled?: boolean
+  onView: () => void
+  onAssign: () => void
+  onEscalate: () => void
+}
+
+export default function TicketActions({ ticketId, disabled = false, onView, onAssign, onEscalate }: TicketActionsProps) {
+  const baseClass =
+    "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#d6cec3] bg-[#faf8f4] text-[#5c544c] transition hover:bg-white"
+
+  return (
+    <div className="flex items-center gap-2">
+      <button type="button" aria-label={`View ${ticketId}`} className={baseClass} onClick={onView} disabled={disabled}>
+        <Eye size={16} />
+      </button>
+      <button type="button" aria-label={`Assign ${ticketId}`} className={baseClass} onClick={onAssign} disabled={disabled}>
+        <UserPlus size={16} />
+      </button>
+      <button type="button" aria-label={`Escalate ${ticketId}`} className={baseClass} onClick={onEscalate} disabled={disabled}>
+        <AlertTriangle size={16} />
+      </button>
+    </div>
+  )
+}

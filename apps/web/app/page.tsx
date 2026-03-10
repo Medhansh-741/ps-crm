@@ -1,95 +1,180 @@
 'use client';
 
-import LandNavbar from "@/components/LandNavbar";
-import ChatBubble from "@/components/ChatBubble";
-import Footer from "@/components/Footer";
+import { useRef } from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { useGSAP } from '@gsap/react';
+import Animatedheader from "@/components/Animatedheader";
+import FadedText from "@/components/Fadedtext";
+import AnimatedText from "@/components/Animatedtext";
+import DecorativeLine from "@/components/Decorativeline";
+import MapVisual from "@/components/Mapvisual";
+import PhoneMockup from "@/components/PhoneMockup";
+import { MegaFooter } from "@/components/MegaFooter";
 import { useTheme } from "@/components/ThemeProvider";
 
-export default function Home() {
+if (typeof window !== 'undefined') {
+  gsap.registerPlugin(ScrollTrigger, useGSAP);
+}
+
+export default function HomePage() {
   const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const isDark = theme === "dark";
+  const dashboardRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(() => {
+    if (!dashboardRef.current) return;
+    gsap.fromTo(
+      dashboardRef.current,
+      { y: 50, opacity: 0 },
+      {
+        y: 0,
+        opacity: 1,
+        duration: 1,
+        ease: 'power3.out',
+        scrollTrigger: {
+          trigger: dashboardRef.current,
+          start: 'top 85%',
+          toggleActions: 'play none none none',
+        },
+      }
+    );
+  }, []);
 
   return (
-    <main className={`relative min-h-screen w-full transition-colors duration-500 ${isDark ? 'bg-gray-950' : 'bg-white'}`}>
+    <main className={`flex min-h-screen flex-col transition-colors duration-500 ${isDark ? "bg-[#2a221c]" : "bg-[#ddd1c0]"}`}>
+      <Animatedheader />
 
-      {/* Leaf background — sits behind everything */}
-      <div
-        className="fixed inset-0 z-0 pointer-events-none"
-        style={{
-          backgroundImage: "url('/green_leaf_bg.png')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-          opacity: isDark ? 0.04 : 0.55,
-        }}
-      />
+      <section className="relative flex min-h-screen items-center px-6 py-16 lg:px-20 lg:py-10">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 lg:flex-row lg:items-center lg:gap-16">
+          <div className="relative order-2 w-full lg:order-1 lg:w-1/2">
+            <FadedText text="Resolve" className="absolute -top-8 left-0 text-6xl md:text-8xl lg:text-9xl" />
 
-      {/* Fixed navbar */}
-      <LandNavbar />
+            <div className="relative z-10 max-w-xl pt-10 lg:pt-16">
+              <AnimatedText
+                as="h1"
+                text="The Centralized Digital Command Center"
+                className="text-5xl font-bold tracking-tight md:text-6xl"
+              />
 
-      {/* Hero Section — pt accounts for fixed navbar height (~72px) */}
-      <section className="relative z-10 flex flex-col items-center justify-center min-h-screen pt-20 pb-16 px-4 sm:px-6 lg:px-8 text-center">
+              <DecorativeLine width="w-24" className="mt-6" />
 
-        {/* Badge */}
-        <span className={`inline-flex items-center mb-6 px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold tracking-widest uppercase border transition-colors duration-500 ${isDark
-          ? 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10'
-          : 'border-emerald-600/30 text-emerald-700 bg-emerald-50'
-          }`}>
-          PS-CRM Platform
-        </span>
+              <AnimatedText
+                as="p"
+                text="Empowering communities with a smart Public Service CRM. Seamlessly organize citizen complaints, automate administrative workflows, and track resolution progress on a live interactive map."
+                className="mt-6 max-w-md text-xl leading-relaxed"
+                animationDelay={0.35}
+              />
+            </div>
+          </div>
 
-        {/* Main heading */}
-        <h1
-          className={`font-[family-name:var(--font-playfair)] text-3xl xs:text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-tight tracking-tight max-w-4xl transition-colors duration-500 ${isDark ? 'text-white' : 'text-gray-900'
-            }`}
-        >
-          Smart{' '}
-          <span className="text-emerald-500">Public Service</span>
-          <br className="hidden sm:block" />
-          {' '}CRM
-        </h1>
-
-        {/* Divider */}
-        <div className={`mt-6 sm:mt-8 mb-6 sm:mb-8 w-12 sm:w-16 h-px rounded-full ${isDark ? 'bg-emerald-500' : 'bg-emerald-400'}`} />
-
-        {/* Subtitle */}
-        <p className={`max-w-xl sm:max-w-2xl text-sm sm:text-base lg:text-lg leading-relaxed font-light transition-colors duration-500 ${isDark ? 'text-gray-300' : 'text-gray-600'
-          }`}>
-          Developing a centralized digital command center that{' '}
-          <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-800'}`}>
-            organizes citizen complaints
-          </span>
-          , automates workflows, assigns tasks, tracks progress in real time, and ensures{' '}
-          <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-800'}`}>
-            transparent and efficient grievance resolution
-          </span>.
-        </p>
-
-        {/* CTA buttons */}
-        <div className="mt-10 sm:mt-12 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 w-full max-w-sm sm:max-w-none">
-          <a
-            href="#"
-            className="w-full sm:w-auto rounded-full bg-emerald-500 hover:bg-emerald-400 text-white px-8 py-3 text-sm font-semibold shadow-lg shadow-emerald-500/30 transition-all duration-300 hover:shadow-emerald-400/40 hover:-translate-y-0.5"
-          >
-            Get Started
-          </a>
-          <a
-            href="#"
-            className={`w-full sm:w-auto rounded-full px-8 py-3 text-sm font-semibold border transition-all duration-300 hover:-translate-y-0.5 text-center ${isDark
-              ? 'border-white/20 text-white hover:bg-white/5'
-              : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-              }`}
-          >
-            Learn More →
-          </a>
+          <div className="order-1 flex w-full items-center justify-center lg:order-2 lg:w-1/2">
+            <div className="relative w-full max-w-2xl lg:max-w-lg">
+              <div className="absolute -bottom-3 -left-3 h-full w-full rounded-2xl bg-[#5b4238]/40 lg:-bottom-5 lg:-left-5" />
+              <MapVisual
+                imageSrc="/Image1.jpg"
+                className="relative z-10 w-full rounded-2xl"
+              />
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Floating chat bubble */}
-      <ChatBubble />
+      {/* second full screen page – Transforming Public Service */}
+      <section className="relative flex min-h-screen items-center px-6 py-10 lg:px-20 lg:py-6">
+        <div className="relative mx-auto w-full max-w-7xl">
+          {/* Text block – upper left */}
+          <div className="relative z-10 max-w-lg">
+            <FadedText text="Empower" animateOnScroll className="absolute -top-6 left-0 text-5xl md:text-7xl lg:text-8xl" />
+            <div className="relative z-10 pt-6 lg:pt-10">
+              <AnimatedText
+                as="h2"
+                text="Transforming Public Service with the JanSamadhan Platform"
+                className="text-3xl font-bold tracking-tight md:text-4xl lg:text-[2.75rem] lg:leading-tight"
+                animateOnScroll
+              />
 
-      {/* Footer */}
-      <Footer />
+              <DecorativeLine width="w-20" className="mt-4" />
+
+              <AnimatedText
+                as="p"
+                text="Centralized, automated, and transparent grievance resolution for modern cities."
+                className="mt-4 max-w-md text-lg leading-relaxed"
+                animationDelay={0.2}
+                animateOnScroll
+              />
+            </div>
+          </div>
+
+          {/* Dashboard image – wide landscape rectangle */}
+          <div ref={dashboardRef} className="relative z-20 mt-6 ml-auto w-full lg:mt-4 lg:w-[65%]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/Dashboard-mockup.jpg"
+              alt="PS-CRM Command Center Dashboard"
+              className={`w-full max-h-[45vh] object-cover object-top rounded-2xl ${isDark ? "shadow-[8px_8px_0px_0px_rgba(91,66,56,0.4)]" : "shadow-[8px_8px_0px_0px_rgba(160,140,120,0.3)]"}`}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* third full screen page – Citizen Impact & Transparency */}
+      <section className="relative flex min-h-screen items-center px-6 py-16 lg:px-20 lg:py-10">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 lg:flex-row lg:items-center lg:gap-16">
+          {/* Left column – text content */}
+          <div className="relative order-2 w-full lg:order-1 lg:w-1/2">
+            <FadedText text="Impact" animateOnScroll className="absolute -top-8 left-0 text-6xl md:text-8xl lg:text-9xl" />
+            <div className="relative z-10 pt-10 lg:pt-16">
+              <AnimatedText
+                as="h2"
+                text="Citizen Impact and Transparency"
+                className="text-4xl font-bold tracking-tight md:text-5xl"
+                animateOnScroll
+              />
+
+              <DecorativeLine width="w-24" className="mt-6" />
+
+              <AnimatedText
+                as="h3"
+                text="Building Trust through Accountability"
+                className="mt-6 text-2xl font-semibold tracking-tight md:text-3xl"
+                animationDelay={0.25}
+                animateOnScroll
+              />
+
+              <AnimatedText
+                as="p"
+                text="Building trust through accountability. JanSamadhan provides citizens with a clear, real-time portal to track the entire grievance resolution process, from submission to final resolution."
+                className="mt-6 max-w-md text-base leading-relaxed opacity-80"
+                animationDelay={0.35}
+                animateOnScroll
+              />
+            </div>
+          </div>
+
+          {/* Right column – phone mockup */}
+          <div className="order-1 flex w-full items-center justify-center lg:order-2 lg:w-1/2">
+            <PhoneMockup />
+          </div>
+        </div>
+      </section>
+
+      <MegaFooter
+        brandColor="#000000"
+        brandColorDark="#ffffff"
+        newsletterTitleColor="#000000"
+        newsletterTitleColorDark="#ffffff"
+        brandName="Team 404"
+        tagline="Designing delightful digital experiences."
+        socialLinks={[
+          { platform: "twitter", href: "https://twitter.com" },
+          { platform: "github", href: "https://github.com/Medhansh-741/ps-crm" },
+          { platform: "linkedin", href: "https://linkedin.com" },
+        ]}
+        showNewsletter={true}
+        newsletterTitle="Stay updated"
+        newsletterPlaceholder="Enter your email"
+      />
     </main>
   );
 }

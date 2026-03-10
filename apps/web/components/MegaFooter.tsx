@@ -359,42 +359,6 @@ export function MegaFooter({
       </div>
 
       <style jsx>{`
-        @media (prefers-color-scheme: dark) {
-          .mega-brand {
-            --brand-color: ${brandColorDark};
-          }
-          .mega-tagline {
-            --tagline-color: ${taglineColorDark};
-          }
-          .mega-section-title {
-            --section-title-color: ${sectionTitleColorDark};
-          }
-          .mega-link {
-            --link-color: ${linkColorDark};
-            --link-hover-color: ${linkHoverColorDark};
-          }
-          .mega-social {
-            --social-color: ${socialColorDark};
-            --social-hover-color: ${socialHoverColorDark};
-          }
-          .mega-newsletter-title {
-            --newsletter-title-color: ${newsletterTitleColorDark};
-          }
-          .mega-input {
-            --input-text-color: ${inputTextColorDark};
-            --input-placeholder-color: ${inputPlaceholderColorDark};
-          }
-          .mega-button {
-            --button-text-color: ${buttonTextColorDark};
-          }
-          .mega-bottom-text {
-            --bottom-text-color: ${bottomTextColorDark};
-          }
-          .mega-bottom-link {
-            --bottom-link-color: ${bottomLinkColorDark};
-            --bottom-link-hover-color: ${bottomLinkHoverColorDark};
-          }
-        }
         :global(.dark) .mega-brand {
           --brand-color: ${brandColorDark} !important;
         }

@@ -20,8 +20,22 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Leafline",
-  description: "Leafline – your nature-inspired CRM",
+  title: "JanSamadhan",
+  description:
+    "JanSamadhan is a public grievance platform to report civic issues, track complaint status, and connect citizens with the right local authorities.",
+  openGraph: {
+    title: "JanSamadhan",
+    description:
+      "Report civic issues, track complaint progress, and get connected to the correct department with JanSamadhan.",
+    siteName: "JanSamadhan",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "JanSamadhan",
+    description:
+      "A civic issue reporting and complaint-tracking platform for citizens and authorities.",
+  },
 };
 
 export default function RootLayout({
@@ -30,9 +44,26 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                  document.documentElement.classList.add('dark');
+                } else {
+                  document.documentElement.classList.remove('dark');
+                }
+              } catch (_) {}
+            `,
+          }}
+        />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} antialiased`}>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import {
   MapContainer,
   TileLayer,
@@ -7,8 +8,11 @@ import {
   Popup,
   useMap,
 } from "react-leaflet";
-import MarkerClusterGroup from "react-leaflet-markercluster";
-import "react-leaflet-markercluster/styles";
+import dynamic from "next/dynamic";
+const MarkerClusterGroup = dynamic(
+  () => import("react-leaflet-markercluster").then((mod) => mod.default ?? mod),
+  { ssr: false }
+) as React.ComponentType<{ children: React.ReactNode }>;
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/src/lib/supabase";
@@ -148,7 +152,11 @@ function parseLocationToLatLng(location: unknown): { lat: number; lng: number } 
   return null;
 }
 
-export default function MapComponent() {
+export default function MapComponent({
+  selectedComplaintId,
+}: {
+  selectedComplaintId?: string | null;
+}) {
   const [complaints, setComplaints] = useState<MapComplaint[]>([]);
   const [mounted, setMounted] = useState(false);
   const [leaflet, setLeaflet] = useState<any>(null);
@@ -205,6 +213,7 @@ export default function MapComponent() {
 
   useEffect(() => {
     setMounted(true);
+    import("react-leaflet-markercluster/styles");
 
     import("leaflet").then((L) => {
       delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -255,23 +264,14 @@ export default function MapComponent() {
 
   return (
     <div style={{ position: "relative", height: "500px", width: "100%" }}>
-      {/* Toggle Button */}
-      <button
-        onClick={() => setShowHeatmap(!showHeatmap)}
-        style={{
-          position: "absolute",
-          zIndex: 1000,
-          right: 20,
-          top: 20,
-          padding: "8px 12px",
-          background: "#111",
-          color: "white",
-          borderRadius: "6px",
-          cursor: "pointer",
-        }}
-      >
-        {showHeatmap ? "Show Markers" : "Show Heatmap"}
-      </button>
+      <div className="absolute right-4 top-4 z-[1000] flex items-center gap-3 pointer-events-none">
+        <button
+          onClick={() => setShowHeatmap(!showHeatmap)}
+          className="pointer-events-auto rounded-lg bg-gray-900 px-4 py-1.5 text-sm font-medium text-white shadow-md hover:bg-gray-700 transition-colors"
+        >
+          {showHeatmap ? "Show Markers" : "Show Heatmap"}
+        </button>
+      </div>
 
       <MapContainer
         center={[28.6139, 77.209]}
@@ -282,7 +282,10 @@ export default function MapComponent() {
           attribution="© OpenStreetMap contributors"
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-
+        <ZoomToComplaint
+          complaints={complaints}
+          selectedComplaintId={selectedComplaintId}
+        />
         {!showHeatmap && (
           <MarkerClusterGroup>
             {complaints.map((c) => (
@@ -347,28 +350,6 @@ export default function MapComponent() {
           Loaded {rawCount} complaints, but none had valid map coordinates.
         </div>
       )}
-
-      {/* Legend */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: "20px",
-          right: "20px",
-          background: "white",
-          padding: "12px 16px",
-          borderRadius: "8px",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-          fontSize: "14px",
-          lineHeight: "1.6",
-          zIndex: 2000,
-        }}
-      >
-        <strong>Severity</strong>
-        <LegendDot color="green" label="Low" />
-        <LegendDot color="gold" label="Medium" />
-        <LegendDot color="orange" label="High" />
-        <LegendDot color="red" label="Critical" />
-      </div>
     </div>
   );
 }
@@ -426,19 +407,28 @@ function getIntensity(severity: string) {
       return 0.3;
   }
 }
+function ZoomToComplaint({
+  complaints,
+  selectedComplaintId,
+}: {
+  complaints: MapComplaint[];
+  selectedComplaintId?: string | null;
+}) {
+  const map = useMap();
 
-function LegendDot({ color, label }: any) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-      <span
-        style={{
-          background: color,
-          width: 12,
-          height: 12,
-          borderRadius: "50%",
-        }}
-      />
-      {label}
-    </div>
-  );
+  useEffect(() => {
+    if (!selectedComplaintId) return;
+
+    const complaint = complaints.find(
+      (c) => c.id === selectedComplaintId
+    );
+
+    if (complaint) {
+      map.setView([complaint.lat, complaint.lng], 15, {
+        animate: true,
+      });
+    }
+  }, [selectedComplaintId, complaints, map]);
+
+  return null;
 }

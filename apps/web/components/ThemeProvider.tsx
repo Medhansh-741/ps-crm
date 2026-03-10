@@ -15,21 +15,26 @@ const ThemeContext = createContext<ThemeContextType>({
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
+    // Always start with 'dark' to match the SSR output and avoid hydration mismatches.
+    // After hydration, a one-time effect reads the class that the inline <head> script
+    // already applied correctly (from localStorage / prefers-color-scheme) and syncs
+    // React state to it — so toggles and reloads always agree.
     const [theme, setTheme] = useState<Theme>('dark');
 
     useEffect(() => {
-        const stored = localStorage.getItem('theme') as Theme | null;
-        const initial = stored ?? 'dark';
-        setTheme(initial);
-        document.documentElement.classList.toggle('dark', initial === 'dark');
+        // On first mount (after hydration), read the true resolved theme from the DOM.
+        const resolved = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+        setTheme(resolved);
     }, []);
+
+    useEffect(() => {
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+        localStorage.setItem('theme', theme);
+    }, [theme]);
 
     const toggleTheme = () => {
         setTheme((prev) => {
-            const next = prev === 'dark' ? 'light' : 'dark';
-            localStorage.setItem('theme', next);
-            document.documentElement.classList.toggle('dark', next === 'dark');
-            return next;
+            return prev === 'dark' ? 'light' : 'dark';
         });
     };
 

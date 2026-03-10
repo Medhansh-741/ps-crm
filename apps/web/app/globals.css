@@ -4,7 +4,138 @@
 /* existing styles below */
 @import "tailwindcss";
 
+/* Use the `dark` class on <html> as the source of truth for theme switching. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ========== DESIGN TOKENS ========== */
+
+/* Color Variables - Light Mode */
+:root {
+  /* Semantic Colors - Status Badges */
+  --color-badge-submitted-bg: #fef3c7;
+  --color-badge-submitted-text: #92400e;
+  --color-badge-assigned-bg: #dbeafe;
+  --color-badge-assigned-text: #1e40af;
+  --color-badge-in-progress-bg: #d1fae5;
+  --color-badge-in-progress-text: #065f46;
+}
+
+/* Dark Mode Colors */
+.dark {
+  --color-badge-submitted-bg: rgba(217, 119, 6, 0.2);
+  --color-badge-submitted-text: #fcd34d;
+  --color-badge-assigned-bg: rgba(30, 64, 175, 0.2);
+  --color-badge-assigned-text: #60a5fa;
+  --color-badge-in-progress-bg: rgba(6, 95, 70, 0.2);
+  --color-badge-in-progress-text: #6ee7b7;
+}
+
+/* ========== UTILITY CLASSES ========== */
+
+@layer components {
+  /* Typography Classes */
+  .heading-1 {
+    @apply text-2xl font-bold leading-tight;
+  }
+  
+  .heading-2 {
+    @apply text-lg font-semibold leading-snug;
+  }
+  
+  .heading-3 {
+    @apply text-base font-semibold leading-snug;
+  }
+  
+  .body-md {
+    @apply text-sm leading-relaxed;
+  }
+  
+  .body-sm {
+    @apply text-xs leading-relaxed;
+  }
+  
+  .caption {
+    @apply text-xs font-medium uppercase tracking-wide;
+  }
+  
+  /* Spacing Utilities */
+  .gap-md {
+    gap: 0.75rem;
+  }
+  
+  .gap-lg {
+    gap: 1rem;
+  }
+  
+  .p-md {
+    padding: 0.75rem;
+  }
+  
+  .p-lg {
+    padding: 1rem;
+  }
+  
+  .px-lg {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .py-lg {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+  
+  .mt-md {
+    margin-top: 0.75rem;
+  }
+
+  .mb-md {
+    margin-bottom: 0.75rem;
+  }
+
+  .mt-lg {
+    margin-top: 1rem;
+  }
+
+  .mt-xl {
+    margin-top: 1.5rem;
+  }
+
+  .pb-lg {
+    padding-bottom: 1rem;
+  }
+  
+  /* Status Badge */
+  .status-badge {
+    @apply inline-block rounded-md px-2.5 py-1 text-xs font-medium transition-shadow duration-200;
+  }
+}
+
+/* ========== ANIMATIONS ========== */
+
 @keyframes floatBubble {
   0%, 100% { transform: translateY(0px); }
   50%       { transform: translateY(-8px); }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+@layer utilities {
+  .animate-pulse-subtle {
+    animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  .animate-shimmer {
+    animation: shimmer 2s infinite;
+    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.2), transparent);
+    background-position: -1000px 0;
+  }
 }

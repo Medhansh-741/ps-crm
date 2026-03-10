@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import LandNavbar from "@/components/LandNavbar";
-import ChatBubble from "@/components/ChatBubble";
+import ChatWidget from "@/components/ChatWidget";
 import Footer from "@/components/Footer";
 import { useTheme } from "@/components/ThemeProvider";
 
@@ -22,7 +22,7 @@ export default function Home() {
         <MapComponent />
       </div>
 
-      <ChatBubble />
+      <ChatWidget />
       <Footer />
     </div>
   );
