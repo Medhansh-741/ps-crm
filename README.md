@@ -91,10 +91,10 @@ India has over **4,000 urban local bodies**, 28 state governments, and hundreds 
 
 | Role | Portal | Email | Password | Access Method |
 |---|---|---|---|---|
-| 👤 **Citizen** | `/` (Home) | *Login via Google* | — | Click "Sign in with Google" — auto-assigns Citizen role |
-| 🏛️ **Authority** | `/authority` | `authority@gmail.com` | `Test1234!` | Email + Password login |
-| 👷 **Worker** | `/worker` | `prakharwork@gmail.com` | `Test1234!` | Email + Password login |
-| ⚙️ **Admin** | `/admin` | `hackathondb@gmail.com` | `Test1234!` | Email + Password login |
+| 👤 **Citizen** | `/citizen` (Home) | *Login via Google* | — | Click "Sign in with Google" — auto-assigns Citizen role |
+| 🏛️ **Authority** | `/authority` | `authority@gmail.com` | `Test1234!` | Email + Password login + Sign in with Google|
+| 👷 **Worker** | `/worker` | `prakharwork@gmail.com` | `Test1234!` | Email + Password login + Sign in with Google|
+| ⚙️ **Admin** | `/admin` | `hackathondb@gmail.com` | `Test1234!` | Email + Password login + Sign in with Google|
 
 > **Note:** Citizens can also sign up manually by clicking "Sign Up", filling the form, and selecting the **Citizen** radio button to assign their role. Admin can invite new Authority and Worker accounts directly from the Admin Dashboard.
 
