@@ -53,7 +53,25 @@ export default function AuthorityLayout({ children }: { children: React.ReactNod
 
   const sidebarConfig = {
     ...defaultSidebarConfig,
-    branding: { ...defaultSidebarConfig.branding, title: "Authority" },
+    branding: {
+      ...defaultSidebarConfig.branding,
+      title: "Authority",
+      icon: (
+        <div
+          className="w-10 h-10 lg:w-[42px] lg:h-[42px] bg-[#C9A84C]"
+          style={{
+            WebkitMaskImage: 'url(/Emblem.svg)',
+            WebkitMaskSize: 'contain',
+            WebkitMaskRepeat: 'no-repeat',
+            WebkitMaskPosition: 'center',
+            maskImage: 'url(/Emblem.svg)',
+            maskSize: 'contain',
+            maskRepeat: 'no-repeat',
+            maskPosition: 'center',
+          }}
+        />
+      ),
+    },
     navigation: [
       { id: "dashboard", name: "Dashboard", icon: <LayoutGrid size={20} strokeWidth={2} />, href: "/authority", isActive: pathname === "/authority" },
       { id: "track", name: "Track Complaints", icon: <ClipboardList size={20} strokeWidth={2} />, href: "/authority/track", isActive: pathname.startsWith("/authority/track") },
@@ -64,7 +82,7 @@ export default function AuthorityLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="flex min-h-screen bg-gray-50 dark:bg-[#161616]">
 
       <Sidebar
         {...sidebarConfig}
@@ -78,7 +96,7 @@ export default function AuthorityLayout({ children }: { children: React.ReactNod
 
         <header className="sticky top-0 z-[1001] flex h-14 shrink-0 items-center justify-between
                            border-b border-gray-200 bg-white px-5
-                           dark:border-gray-800 dark:bg-gray-950">
+                           dark:border-[#2a2a2a] dark:bg-[#1a1a1a]">
           {/* Mobile hamburger */}
           <button
             onClick={() => setIsSidebarOpen(true)}

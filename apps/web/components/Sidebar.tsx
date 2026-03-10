@@ -53,17 +53,17 @@ export interface SidebarBottomNavigationItem {
 }
 
 export const SIDEBAR_LIGHT_COLORS: SidebarThemeColors = {
-  background: "bg-[#4f392e]",
-  border: "border-[#C9A84C]/30",
-  textMain: "text-gray-900",
-  textMuted: "text-gray-400",
-  textHover: "hover:text-gray-700",
-  bgHover: "hover:bg-gray-50",
-  activeText: "text-[#ffffff]",
-  activeBg: "bg-[#C9A84C]",
-  activeIndicator: "bg-[#C9A84C]",
-  badgeBg: "bg-[#C9A84C]",
-  badgeText: "text-white",
+  background: "bg-[#554035]",
+  border: "border-[transparent]",
+  textMain: "text-[#F5EBE1]",
+  textMuted: "text-[#B4A396]",
+  textHover: "hover:text-[#F5EBE1]",
+  bgHover: "hover:bg-[#624D41]",
+  activeText: "text-[#F5EBE1]",
+  activeBg: "bg-[#B48470]",
+  activeIndicator: "hidden",
+  badgeBg: "bg-[#B48470]",
+  badgeText: "text-[#F5EBE1]",
   toggleButtonBg: "bg-white",
 };
 
@@ -104,8 +104,8 @@ export const defaultSidebarConfig: Omit<SidebarConfig, "isOpen" | "onClose" | "i
   branding: {
     title: "Taskify",
     icon: (
-      <div className="bg-purple-100 dark:bg-purple-900/30 p-1.5 rounded-lg shrink-0">
-        <Flame size={24} strokeWidth={2.5} className="text-purple-600 dark:text-purple-400" />
+      <div className="bg-[#B48470] dark:bg-purple-900/30 p-1.5 rounded-lg shrink-0">
+        <Flame size={24} strokeWidth={2.5} className="text-[#FDF8F0] dark:text-purple-400" />
       </div>
     ),
   },
@@ -213,7 +213,7 @@ const Sidebar: React.FC<SidebarConfig> = ({
         {/* Desktop Collapse Toggle */}
         <button
           onClick={onToggleCollapse}
-          className={`absolute -right-3 top-10 z-[3002] hidden lg:flex h-6 w-6 items-center justify-center rounded-full border text-gray-500 shadow-md hover:text-gray-900 dark:border-[#C9A84C]/40 dark:text-gray-400 dark:hover:text-[#C9A84C] transition-all duration-200 focus:ring-2 focus:ring-offset-2 focus:ring-[#C9A84C] dark:focus:ring-[#C9A84C] focus:outline-none ${colors.toggleButtonBg}`}
+          className={`absolute -right-3 top-10 z-[3002] hidden lg:flex h-6 w-6 items-center justify-center rounded-full border text-gray-500 shadow-md hover:text-gray-900 dark:border-[#C9A84C]/40 dark:text-gray-400 dark:hover:text-[#C9A84C] transition-all duration-200 focus:ring-2 focus:ring-offset-2 focus:ring-[#B48470] dark:focus:ring-[#C9A84C] focus:outline-none ${colors.toggleButtonBg}`}
         >
           {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
@@ -233,7 +233,7 @@ const Sidebar: React.FC<SidebarConfig> = ({
               </div>
             </div>
             {/* Close button only visible on mobile */}
-            <button onClick={onClose} className={`lg:hidden text-gray-500 hover:text-gray-900 dark:hover:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#C9A84C] dark:focus:ring-[#C9A84C] rounded-md ${isCollapsed ? "hidden" : "block"}`}>
+            <button onClick={onClose} className={`lg:hidden text-gray-500 hover:text-gray-900 dark:hover:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#B48470] dark:focus:ring-[#C9A84C] rounded-md ${isCollapsed ? "hidden" : "block"}`}>
               <X size={24} />
             </button>
           </div>
@@ -249,7 +249,7 @@ const Sidebar: React.FC<SidebarConfig> = ({
                   href={item.href}
                   className={`
                     flex items-center ${isCollapsed ? "justify-center px-2" : "justify-start px-4"} py-3 ml-2 rounded-xl font-medium transition-all duration-200
-                    focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#C9A84C] dark:focus:ring-[#C9A84C]
+                    focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#B48470] dark:focus:ring-[#C9A84C]
                     ${item.isActive
                       ? `${colors.activeBg} ${colors.activeText} font-semibold`
                       : `${colors.textMuted} ${colors.textHover} ${colors.bgHover}`
@@ -283,7 +283,7 @@ const Sidebar: React.FC<SidebarConfig> = ({
           <button
             type="button"
             onClick={toggleTheme}
-            className={`menu-item flex w-full items-center ${isCollapsed ? "justify-center px-2 gap-0" : "justify-start px-4 gap-4"} py-3 ml-2 rounded-xl font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#C9A84C] dark:focus:ring-[#C9A84C] ${colors.textMuted} ${colors.textHover} ${colors.bgHover}`}
+            className={`menu-item flex w-full items-center ${isCollapsed ? "justify-center px-2 gap-0" : "justify-start px-4 gap-4"} py-3 ml-2 rounded-xl font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#B48470] dark:focus:ring-[#C9A84C] ${colors.textMuted} ${colors.textHover} ${colors.bgHover}`}
             title={isCollapsed ? (isDark ? "Light Mode" : "Dark Mode") : undefined}
           >
             <div className="shrink-0">

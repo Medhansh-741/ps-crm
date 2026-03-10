@@ -43,6 +43,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     branding: {
       ...defaultSidebarConfig.branding,
       title: "Admin",
+      icon: (
+        <div
+          className="w-10 h-10 lg:w-[42px] lg:h-[42px] bg-[#C9A84C]"
+          style={{
+            WebkitMaskImage: 'url(/Emblem.svg)',
+            WebkitMaskSize: 'contain',
+            WebkitMaskRepeat: 'no-repeat',
+            WebkitMaskPosition: 'center',
+            maskImage: 'url(/Emblem.svg)',
+            maskSize: 'contain',
+            maskRepeat: 'no-repeat',
+            maskPosition: 'center',
+          }}
+        />
+      ),
     },
     colors: {
       ...defaultSidebarConfig.colors,
@@ -66,11 +81,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Sidebar 
-        {...sidebarConfig} 
-        isOpen={isSidebarOpen} 
-        onClose={() => setIsSidebarOpen(false)} 
+    <div className="flex min-h-screen bg-gray-50 dark:bg-[#161616]">
+      <Sidebar
+        {...sidebarConfig}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
         isCollapsed={isCollapsed}
         onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
       />
@@ -78,7 +93,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Keep content adjacent to fixed sidebar on desktop */}
       <main className={`flex-1 w-full p-4 transition-[margin] duration-300 ${isCollapsed ? "lg:ml-20" : "lg:ml-64"}`}>
-        <button 
+        <button
           onClick={() => setIsSidebarOpen(true)}
           className="lg:hidden p-2 bg-purple-600 text-white rounded-md mb-4"
           aria-label="Open menu"
