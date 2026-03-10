@@ -9,7 +9,6 @@ import {
   getSeverityConfig,
   isBreached,
   timeAgo,
-  isBreached,
   type AuthorityComplaintRow,
 } from "./dashboard-types"
 import { ComplaintDetailPanel } from "./ComplaintDetailPanel"
