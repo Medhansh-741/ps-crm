@@ -89,7 +89,7 @@ export default function HomePage() {
             <div className="relative z-10 pt-6 lg:pt-10">
               <AnimatedText
                 as="h2"
-                text="Transforming Public Service with the PS-CRM"
+                text="Transforming Public Service with the JanSamadhan Platform"
                 className="text-3xl font-bold tracking-tight md:text-4xl lg:text-[2.75rem] lg:leading-tight"
                 animateOnScroll
               />
@@ -110,7 +110,7 @@ export default function HomePage() {
           <div ref={dashboardRef} className="relative z-20 mt-6 ml-auto w-full lg:mt-4 lg:w-[65%]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/dashboard-mockup.jpg"
+              src="/Dashboard-mockup.jpg"
               alt="PS-CRM Command Center Dashboard"
               className={`w-full max-h-[45vh] object-cover object-top rounded-2xl ${isDark ? "shadow-[8px_8px_0px_0px_rgba(91,66,56,0.4)]" : "shadow-[8px_8px_0px_0px_rgba(160,140,120,0.3)]"}`}
             />
@@ -164,7 +164,7 @@ export default function HomePage() {
         brandColorDark="#ffffff"
         newsletterTitleColor="#000000"
         newsletterTitleColorDark="#ffffff"
-        brandName="Bits"
+        brandName="Team 404"
         tagline="Designing delightful digital experiences."
         socialLinks={[
           { platform: "twitter", href: "https://twitter.com" },
