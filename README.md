@@ -558,56 +558,10 @@ stateDiagram-v2
 
 ## 🏗️ Application Architecture
 
-```mermaid
-graph TD
-    subgraph Client["🌐 Client Layer (Next.js 15 + React 19)"]
-        CIT[👤 Citizen PWA]
-        AUTH[🏛️ Authority Dashboard]
-        WRK[👷 Worker PWA]
-        ADM[⚙️ Admin Panel]
-    end
-
-    subgraph API["⚙️ API Layer (FastAPI — Python)"]
-        SEVA[💬 Seva Chatbot\nGemini AI Integration]
-        DGP[📍 DIGIPIN Encoder/Decoder]
-        ANLX[📊 Analytics Generator]
-    end
-
-    subgraph DB["🗄️ Data Layer (Supabase + PostgreSQL 15)"]
-        PG[(PostgreSQL + PostGIS 3.4)]
-        RLS[🔒 28 RLS Policies]
-        TRG[⚡ 8 Triggers]
-        RPC[🔧 9 RPC Functions]
-        STR[📁 Supabase Storage\ncomplaints-media]
-    end
-
-    subgraph EXT["🔌 External Services"]
-        GMN[🤖 Google Gemini\nFree Tier API]
-        MAPS[🗺️ Mappls Maps\nLeaflet.js]
-        GAUTH[🔐 Google OAuth]
-        RCAP[🛡️ reCAPTCHA v2]
-    end
-
-    CIT -->|Complaint submission| API
-    CIT -->|Real-time updates| DB
-    AUTH -->|Dept-scoped queries| DB
-    WRK -->|Status updates| DB
-    ADM -->|Full access| DB
-
-    SEVA -->|classify + chat| GMN
-    DGP -->|encode/decode| PG
-    ANLX -->|trend summary| GMN
-
-    DB --> PG
-    PG --- RLS
-    PG --- TRG
-    PG --- RPC
-    PG --- STR
-
-    CIT --> GAUTH
-    CIT --> RCAP
-    Client --> MAPS
-```
+<p align="center">
+  <img src="docs/system-architecture.jpeg" width="100%"/>
+</p>
+---
 
 ### Tech Stack Summary
 
